@@ -1,0 +1,268 @@
+// =============================================================================
+// Zihkon Admin — Prisma schema sobre la base de datos PostgreSQL EXISTENTE.
+//
+// ⚠️  NO ejecutar `prisma migrate dev`, `prisma migrate reset` ni `prisma db push`
+//     contra la base de datos de producción. Este schema solo se usa para
+//     generar el cliente tipado (`prisma generate`).
+//
+// Para comparar con el esquema real sin modificar nada:
+//     npm run db:inspect      (prisma db pull --print → solo imprime)
+//
+// Decisiones:
+//  - Todos los campos no-PK son opcionales (`?`) porque no conocemos con
+//    certeza la nulabilidad real; así una fila con NULL nunca rompe la lectura.
+//  - Las relaciones se declaran a nivel Prisma para poder hacer `include`.
+//    Prisma no necesita que existan FOREIGN KEYs reales para consultar.
+//  - clients (UUID) y gbp_clients (INTEGER) NO están relacionados.
+//    Ver prisma/proposed-migrations/002_link_clients_gbp.sql.
+// =============================================================================
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// -----------------------------------------------------------------------------
+// Clientes principales
+// -----------------------------------------------------------------------------
+
+model Client {
+  clientId       String    @id @default(uuid()) @map("client_id") @db.Uuid
+  clientName     String?   @map("client_name")
+  whatsappE164   String?   @map("whatsapp_e164")
+  driveFolderId  String?   @map("drive_folder_id")
+  googleSheetId  String?   @map("google_sheet_id")
+  googleSheetTab String?   @map("google_sheet_tab")
+  timezone       String?
+  active         Boolean?
+  createdAt      DateTime? @default(now()) @map("created_at")
+
+  websites          ClientWebsite[]
+  contentIntakes    ContentIntake[]
+  contentSessions   ContentSession[]
+  processedMessages ProcessedMessage[]
+
+  @@map("clients")
+}
+
+model ClientWebsite {
+  websiteId          String    @id @default(uuid()) @map("website_id") @db.Uuid
+  clientId           String?   @map("client_id") @db.Uuid
+  githubOwner        String?   @map("github_owner")
+  githubRepository   String?   @map("github_repository")
+  defaultBranch      String?   @map("default_branch")
+  netlifySiteId      String?   @map("netlify_site_id")
+  websiteUrl         String?   @map("website_url")
+  previewModeEnabled Boolean?  @map("preview_mode_enabled")
+  active             Boolean?
+  createdAt          DateTime? @default(now()) @map("created_at")
+  updatedAt          DateTime? @updatedAt @map("updated_at")
+
+  client Client? @relation(fields: [clientId], references: [clientId])
+
+  @@map("client_websites")
+}
+
+// -----------------------------------------------------------------------------
+// Contenido recibido por WhatsApp
+// -----------------------------------------------------------------------------
+
+model ContentIntake {
+  intakeId        String    @id @default(uuid()) @map("intake_id") @db.Uuid
+  clientId        String?   @map("client_id") @db.Uuid
+  sourceMessageId String?   @map("source_message_id")
+  description     String?
+  status          String?
+  expectedCount   Int?      @map("expected_count")
+  createdAt       DateTime? @default(now()) @map("created_at")
+  updatedAt       DateTime? @updatedAt @map("updated_at")
+  expiresAt       DateTime? @map("expires_at")
+
+  client   Client?          @relation(fields: [clientId], references: [clientId])
+  media    ContentMedia[]
+  sessions ContentSession[]
+
+  @@map("content_intakes")
+}
+
+model ContentMedia {
+  mediaId           String    @id @default(uuid()) @map("media_id") @db.Uuid
+  intakeId          String?   @map("intake_id") @db.Uuid
+  providerMessageId String?   @map("provider_message_id")
+  mediaType         String?   @map("media_type")
+  mimeType          String?   @map("mime_type")
+  originalFileName  String?   @map("original_file_name")
+  driveFileId       String?   @map("drive_file_id")
+  driveUrl          String?   @map("drive_url")
+  position          Int?
+  createdAt         DateTime? @default(now()) @map("created_at")
+  metadata          Json?     @db.JsonB
+
+  intake ContentIntake? @relation(fields: [intakeId], references: [intakeId])
+
+  @@map("content_media")
+}
+
+model ContentSession {
+  sessionId            String    @id @default(uuid()) @map("session_id") @db.Uuid
+  instanceId           String?   @map("instance_id")
+  remoteJid            String?   @map("remote_jid")
+  clientId             String?   @map("client_id") @db.Uuid
+  contentIntakeId      String?   @map("content_intake_id") @db.Uuid
+  startMessageId       String?   @map("start_message_id")
+  status               String?
+  mediaType            String?   @map("media_type")
+  mediaCount           Int?      @map("media_count")
+  description          String?
+  createdAt            DateTime? @default(now()) @map("created_at")
+  updatedAt            DateTime? @updatedAt @map("updated_at")
+  completedAt          DateTime? @map("completed_at")
+  expiresAt            DateTime? @map("expires_at")
+  readyMessageId       String?   @map("ready_message_id")
+  descriptionMessageId String?   @map("description_message_id")
+
+  client Client?               @relation(fields: [clientId], references: [clientId])
+  intake ContentIntake?        @relation(fields: [contentIntakeId], references: [intakeId])
+  media  ContentSessionMedia[]
+
+  @@map("content_sessions")
+}
+
+model ContentSessionMedia {
+  sessionMediaId   String    @id @default(uuid()) @map("session_media_id") @db.Uuid
+  sessionId        String?   @map("session_id") @db.Uuid
+  instanceId       String?   @map("instance_id")
+  messageId        String?   @map("message_id")
+  mediaType        String?   @map("media_type")
+  mimeType         String?   @map("mime_type")
+  filename         String?
+  mediaReference   String?   @map("media_reference")
+  driveFileId      String?   @map("drive_file_id")
+  driveUrl         String?   @map("drive_url")
+  caption          String?
+  messageTimestamp DateTime? @map("message_timestamp")
+  position         Int?
+  fileSize         BigInt?   @map("file_size")
+  status           String?
+  createdAt        DateTime? @default(now()) @map("created_at")
+  metadata         Json?     @db.JsonB
+
+  session ContentSession? @relation(fields: [sessionId], references: [sessionId])
+
+  @@map("content_session_media")
+}
+
+model ProcessedMessage {
+  providerMessageId String    @id @map("provider_message_id")
+  clientId          String?   @map("client_id") @db.Uuid
+  status            String?
+  receivedAt        DateTime? @map("received_at")
+  error             String?
+
+  client Client? @relation(fields: [clientId], references: [clientId])
+
+  @@map("processed_messages")
+}
+
+// -----------------------------------------------------------------------------
+// Google Business Profile (sistema independiente, IDs INTEGER)
+// -----------------------------------------------------------------------------
+
+model GbpClient {
+  id                   Int       @id @default(autoincrement())
+  businessName         String?   @map("business_name")
+  locationId           String?   @map("location_id")
+  accountId            String?   @map("account_id")
+  businessType         String?   @map("business_type")
+  active               Boolean?
+  responseTone         String?   @map("response_tone")
+  preferredLanguage    String?   @map("preferred_language")
+  responseMode         String?   @map("response_mode")
+  customAiInstructions String?   @map("custom_ai_instructions")
+  notificationEmail    String?   @map("notification_email")
+  telegramChatId       String?   @map("telegram_chat_id")
+  whatsappE164         String?   @map("whatsapp_e164")
+  delayMinutes         Int?      @map("delay_minutes")
+  contactEmail         String?   @map("contact_email")
+  createdAt            DateTime? @default(now()) @map("created_at")
+  updatedAt            DateTime? @updatedAt @map("updated_at")
+
+  reviews GbpReviewActivity[]
+  errors  GbpAutomationError[]
+
+  @@map("gbp_clients")
+}
+
+model GbpReviewActivity {
+  id                   Int       @id @default(autoincrement())
+  clientId             Int?      @map("client_id")
+  reviewId             String?   @map("review_id")
+  reviewerName         String?   @map("reviewer_name")
+  rating               String?
+  reviewText           String?   @map("review_text")
+  reviewDate           DateTime? @map("review_date")
+  existingResponse     String?   @map("existing_response")
+  generatedResponse    String?   @map("generated_response")
+  status               String?
+  scheduledPublishDate DateTime? @map("scheduled_publish_date")
+  createdDate          DateTime? @default(now()) @map("created_date")
+  approvedDate         DateTime? @map("approved_date")
+  publishedDate        DateTime? @map("published_date")
+  errorDetails         String?   @map("error_details")
+
+  gbpClient GbpClient?           @relation(fields: [clientId], references: [id])
+  errors    GbpAutomationError[]
+
+  @@map("gbp_review_activity")
+}
+
+model GbpAutomationError {
+  id           Int       @id @default(autoincrement())
+  stage        String?
+  clientId     Int?      @map("client_id")
+  reviewDbId   Int?      @map("review_db_id")
+  errorMessage String?   @map("error_message")
+  createdAt    DateTime? @default(now()) @map("created_at")
+
+  gbpClient GbpClient?         @relation(fields: [clientId], references: [id])
+  review    GbpReviewActivity? @relation(fields: [reviewDbId], references: [id])
+
+  @@map("gbp_automation_errors")
+}
+
+// -----------------------------------------------------------------------------
+// Auditorías locales (leads / informes)
+// -----------------------------------------------------------------------------
+
+model AuditoriaLocal {
+  id                 BigInt    @id @default(autoincrement())
+  emailNormalizado   String?   @map("email_normalizado")
+  negocioClave       String?   @map("negocio_clave")
+  email              String?
+  nombreNegocio      String?   @map("nombre_negocio")
+  direccion          String?
+  googlePlaces       Json?     @map("google_places") @db.JsonB
+  informe            Json?     @db.JsonB
+  pdfUrl             String?   @map("pdf_url")
+  driveFileId        String?   @map("drive_file_id")
+  cloudinaryPublicId String?   @map("cloudinary_public_id")
+  createdAt          DateTime? @default(now()) @map("created_at")
+
+  @@map("auditorias_locales")
+}
+
+// -----------------------------------------------------------------------------
+// Administradores de automatizaciones (teléfonos autorizados en WhatsApp)
+// -----------------------------------------------------------------------------
+
+model AutomationAdmin {
+  phoneE164 String    @id @map("phone_e164")
+  active    Boolean?
+  createdAt DateTime? @default(now()) @map("created_at")
+
+  @@map("automation_admins")
+}

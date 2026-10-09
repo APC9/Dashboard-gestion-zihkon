@@ -1,0 +1,21 @@
+# Zihkon Admin — despliegue con Docker / Coolify.
+# Se conecta a tu PostgreSQL EXISTENTE (DATABASE_URL). No crea ni modifica la base de datos.
+#
+#   cp .env.example .env   # rellena los valores
+#   docker compose up -d
+services:
+  zihkon-admin:
+    build: .
+    image: zihkon-admin:latest
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      NODE_ENV: production
+    ports:
+      - "${APP_PORT:-3000}:3000"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/api/health"]
+      interval: 30s
+      timeout: 5s
+      start_period: 20s
+      retries: 3

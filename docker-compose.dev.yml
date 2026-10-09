@@ -1,0 +1,15 @@
+# SOLO DESARROLLO LOCAL: PostgreSQL desechable con la estructura de Zihkon y datos ficticios.
+# Uso:  docker compose -f docker-compose.dev.yml up -d
+# DATABASE_URL=postgresql://zihkon:zihkon@localhost:5433/zihkon_dev
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: zihkon
+      POSTGRES_PASSWORD: zihkon
+      POSTGRES_DB: zihkon_dev
+    ports:
+      - "5433:5432"
+    volumes:
+      - ./dev/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+      - ./dev/seed.sql:/docker-entrypoint-initdb.d/02-seed.sql:ro

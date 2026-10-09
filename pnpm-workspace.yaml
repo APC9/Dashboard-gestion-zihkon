@@ -1,0 +1,5 @@
+# pnpm 10 no ejecuta scripts de instalación salvo los autorizados aquí.
+onlyBuiltDependencies:
+  - "@prisma/engines"
+  - prisma
+  - unrs-resolver

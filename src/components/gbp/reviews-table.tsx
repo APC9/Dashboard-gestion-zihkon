@@ -1,0 +1,106 @@
+"use client";
+
+import type { ColumnDef } from "@tanstack/react-table";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { DataTable } from "@/components/shared/data-table";
+import { RatingStars } from "@/components/shared/rating-stars";
+import { StatusBadge } from "@/components/shared/status-badge";
+import { Button } from "@/components/ui/button";
+import { formatDate } from "@/lib/format";
+import { ratingToNumber } from "@/lib/status";
+
+export interface ReviewRow {
+  id: number;
+  reviewId: string | null;
+  reviewerName: string | null;
+  rating: string | null;
+  reviewText: string | null;
+  generatedResponse: string | null;
+  status: string | null;
+  reviewDate: Date | string | null;
+  createdDate: Date | string | null;
+  gbpClient: { id: number; businessName: string | null } | null;
+  zihkonClient: { clientId: string; clientName: string | null } | null;
+}
+
+export function ReviewsTable({ rows }: { rows: ReviewRow[] }) {
+  const router = useRouter();
+  const columns: ColumnDef<ReviewRow>[] = [
+    {
+      id: "client",
+      header: "Cliente",
+      enableSorting: false,
+      cell: ({ row }) =>
+        row.original.zihkonClient ? (
+          <Link href={`/clients/${row.original.zihkonClient.clientId}?tab=gbp`} className="text-sm hover:underline">
+            {row.original.zihkonClient.clientName}
+          </Link>
+        ) : (
+          <span className="text-sm text-muted-foreground">—</span>
+        ),
+    },
+    {
+      id: "business",
+      header: "Negocio",
+      accessorFn: (r) => r.gbpClient?.businessName ?? "",
+      cell: ({ row }) => <span className="text-sm font-medium">{row.original.gbpClient?.businessName ?? "—"}</span>,
+    },
+    {
+      accessorKey: "reviewerName",
+      header: "Autor",
+      cell: ({ row }) => <span className="text-sm">{row.original.reviewerName ?? "Anónimo"}</span>,
+    },
+    {
+      id: "rating",
+      header: "Rating",
+      accessorFn: (r) => ratingToNumber(r.rating) ?? 0,
+      cell: ({ row }) => <RatingStars rating={row.original.rating} />,
+    },
+    {
+      accessorKey: "reviewText",
+      header: "Texto",
+      enableSorting: false,
+      cell: ({ row }) => (
+        <p className="line-clamp-2 max-w-72 text-sm text-muted-foreground">{row.original.reviewText || <em>Sin texto</em>}</p>
+      ),
+    },
+    {
+      accessorKey: "generatedResponse",
+      header: "Respuesta generada",
+      enableSorting: false,
+      cell: ({ row }) => (
+        <p className="line-clamp-2 max-w-72 text-sm">{row.original.generatedResponse || <em className="text-muted-foreground">Pendiente</em>}</p>
+      ),
+    },
+    {
+      accessorKey: "status",
+      header: "Estado",
+      cell: ({ row }) => <StatusBadge status={row.original.status} />,
+    },
+    {
+      id: "date",
+      header: "Fecha",
+      accessorFn: (r) => new Date((r.reviewDate ?? r.createdDate ?? 0) as string).getTime(),
+      cell: ({ row }) => <span className="text-sm whitespace-nowrap text-muted-foreground">{formatDate(row.original.reviewDate ?? row.original.createdDate)}</span>,
+    },
+    {
+      id: "actions",
+      header: () => <span className="sr-only">Acciones</span>,
+      cell: ({ row }) => (
+        <Button asChild size="sm" variant="outline">
+          <Link href={`/gbp/reviews/${row.original.id}`}>Revisar</Link>
+        </Button>
+      ),
+    },
+  ];
+
+  return (
+    <DataTable
+      columns={columns}
+      data={rows}
+      empty="No hay reseñas con estos filtros"
+      onRowClick={(r) => router.push(`/gbp/reviews/${r.id}`)}
+    />
+  );
+}
