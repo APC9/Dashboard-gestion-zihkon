@@ -76,7 +76,7 @@ export default async function GbpProfilesPage({ searchParams }: { searchParams: 
                   <TableRow key={p.id}>
                     <TableCell>
                       <Link href={`/gbp/profiles/${p.id}`} className="font-medium hover:underline">
-                        {p.businessName ?? "Sin nombre"}
+                        {p.client.clientName ?? "Sin nombre"}
                       </Link>
                       {p.businessType ? <p className="text-xs text-muted-foreground">{p.businessType}</p> : null}
                     </TableCell>

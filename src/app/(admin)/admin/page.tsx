@@ -55,7 +55,7 @@ export default async function AdminPage() {
                 <dt className="font-medium">CLIENT</dt>
                 <dd className="text-muted-foreground">
                   Preparado (FASE 2): solo su client_id y perfiles GBP vinculados explícitamente. Todas las consultas ya aplican el
-                  ámbito por cliente en servidor. Requiere la migración 003 (usuarios) y la 002 (vínculo GBP).
+                  ámbito por cliente en servidor. Requiere la migración 003 (usuarios).
                 </dd>
               </div>
             </dl>

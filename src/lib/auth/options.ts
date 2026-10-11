@@ -70,7 +70,7 @@ export const authOptions: NextAuthOptions = {
   callbacks: {
     async jwt({ token, user }) {
       if (user) {
-        const u = user as typeof user & { role?: Role; clientId?: string | null; gbpClientIds?: number[] };
+        const u = user as typeof user & { role?: Role; clientId?: string | null; gbpClientIds?: string[] };
         token.role = u.role ?? "ADMIN";
         token.clientId = u.clientId ?? null;
         token.gbpClientIds = u.gbpClientIds ?? [];

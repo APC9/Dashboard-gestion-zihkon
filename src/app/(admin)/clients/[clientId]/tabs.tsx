@@ -1,22 +1,24 @@
-import { AlertTriangle, ClipboardCheck, ExternalLink, FileText, Globe, Images, Info, MessageSquare, MousePointerClick, Star } from "lucide-react";
+import { AlertTriangle, ClipboardCheck, ExternalLink, FileText, Globe, Images, MessageSquare, MousePointerClick, Plus, Star } from "lucide-react";
 import Link from "next/link";
 import { RunWorkflowButton } from "@/components/automations/run-workflow-button";
+import { ClientAutomationsToggles } from "@/components/clients/client-automations";
 import { ClientForm } from "@/components/clients/client-form";
 import { DeleteClientButton } from "@/components/clients/client-actions";
 import { IntakeCard } from "@/components/content/intake-card";
+import { DeleteGbpProfileButton } from "@/components/gbp/gbp-profile-actions";
 import { GbpProfileForm } from "@/components/gbp/gbp-profile-form";
 import { ReviewSummary } from "@/components/gbp/review-summary";
 import { EmptyState } from "@/components/shared/empty-state";
 import { ActiveBadge, StatusBadge } from "@/components/shared/status-badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { WebsitePanel } from "@/components/websites/website-panel";
 import type { Client, ClientWebsite } from "@/generated/prisma/client";
 import { recentActivityForClient } from "@/lib/activity-log";
 import type { Actor } from "@/lib/auth/types";
 import { findAuditsForClient } from "@/lib/data/audits";
-import type { GbpLink } from "@/lib/data/client-links";
-import { getClientActivity } from "@/lib/data/clients";
+import { listClientAutomations } from "@/lib/data/automations";
+import { getClientActivity, type GbpLink } from "@/lib/data/clients";
 import { listIntakes, listMessageErrors } from "@/lib/data/content";
 import { reviewSummary } from "@/lib/data/gbp";
 import { prisma } from "@/lib/db";
@@ -69,62 +71,57 @@ export function WebTab({ clientId, websites }: { clientId: string; websites: Cli
 export async function GbpTab({ actor, client, links }: { actor: Actor; client: Client; links: GbpLink[] }) {
   const ids = links.map((l) => l.gbpClientId);
   const [profiles, summary] = await Promise.all([
-    prisma.gbpClient.findMany({ where: { id: { in: ids } }, orderBy: { businessName: "asc" } }),
+    prisma.gbpClient.findMany({ where: { clientId: client.clientId }, orderBy: { createdAt: "asc" } }),
     reviewSummary(actor, ids),
   ]);
 
+  if (profiles.length === 0) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Star className="size-4" /> Crear perfil de Google Business
+          </CardTitle>
+          <CardDescription>
+            Este cliente aún no tiene perfil. Quedará enlazado a él y usará su nombre y su WhatsApp ({client.whatsappE164 ?? "—"}).
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <GbpProfileForm refreshOnCreate initial={{ clientId: client.clientId, active: client.active }} />
+        </CardContent>
+      </Card>
+    );
+  }
+
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-start gap-3 rounded-lg border border-sky-500/30 bg-sky-500/5 p-3 text-sm">
-        <Info className="mt-0.5 size-4 shrink-0 text-sky-600" />
-        <p className="text-muted-foreground">
-          Google Business usa su propia tabla (<code>gbp_clients</code>, IDs numéricos) sin relación directa con
-          <code> clients</code>. Los perfiles se asocian por <strong>WhatsApp</strong> (coincidencia fuerte) o por
-          <strong> nombre</strong> (sin confirmar). Ver la migración propuesta en <code>prisma/proposed-migrations</code>.
-        </p>
-      </div>
-
-      {profiles.length === 0 ? (
-        <EmptyState
-          icon={Star}
-          title="Sin perfil de Google Business asociado"
-          description={`No hay ningún perfil en gbp_clients con el mismo WhatsApp (${client.whatsappE164 ?? "—"}) o nombre que este cliente.`}
-          action={
-            <Button asChild variant="outline">
-              <Link href="/gbp/profiles">Ver perfiles GBP</Link>
-            </Button>
-          }
-        />
-      ) : (
-        <>
-          {profiles.map((p) => {
-            const link = links.find((l) => l.gbpClientId === p.id);
-            return (
-              <Card key={p.id}>
-                <CardHeader>
-                  <CardTitle className="flex flex-wrap items-center gap-2 text-base">
-                    {p.businessName ?? "Perfil sin nombre"} <ActiveBadge active={p.active} />
-                    <StatusBadge
-                      tone={link?.matchedBy === "whatsapp" ? "success" : "warning"}
-                      label={link?.matchedBy === "whatsapp" ? "Vinculado por WhatsApp" : "Coincidencia por nombre"}
-                    />
-                  </CardTitle>
-                  <CardDescription>
-                    ID {p.id} · {p.locationId ?? "sin Location ID"} ·{" "}
-                    <Link href={`/gbp/reviews?gbpClientId=${p.id}`} className="text-primary hover:underline">
-                      Ver reseñas
-                    </Link>
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <GbpProfileForm initial={p} />
-                </CardContent>
-              </Card>
-            );
-          })}
-          <ReviewSummary summary={summary} href={ids.length === 1 ? `/gbp/reviews?gbpClientId=${ids[0]}` : "/gbp/reviews"} />
-        </>
-      )}
+      {profiles.map((p) => (
+        <Card key={p.id}>
+          <CardHeader>
+            <CardTitle className="flex flex-wrap items-center gap-2 text-base">
+              {client.clientName ?? "Perfil sin nombre"} <ActiveBadge active={p.active} />
+            </CardTitle>
+            <CardDescription>
+              {p.locationId} ·{" "}
+              <Link href={`/gbp/reviews?gbpClientId=${p.id}`} className="text-primary hover:underline">
+                Ver reseñas
+              </Link>
+            </CardDescription>
+            <CardAction>
+              <DeleteGbpProfileButton id={p.id} businessName={client.clientName ?? "este perfil"} />
+            </CardAction>
+          </CardHeader>
+          <CardContent>
+            <GbpProfileForm initial={p} />
+          </CardContent>
+        </Card>
+      ))}
+      <Button asChild variant="outline" className="self-start">
+        <Link href={`/gbp/profiles/new?clientId=${client.clientId}`}>
+          <Plus className="size-4" /> Añadir otra ubicación
+        </Link>
+      </Button>
+      <ReviewSummary summary={summary} href={ids.length === 1 ? `/gbp/reviews?gbpClientId=${ids[0]}` : "/gbp/reviews"} />
     </div>
   );
 }
@@ -205,10 +202,23 @@ export async function AuditsTab({ actor, clientName }: { actor: Actor; clientNam
 }
 
 export async function AutomationsTab({ actor, client, websites }: { actor: Actor; client: Client; websites: ClientWebsite[] }) {
-  const errors = (await listMessageErrors(actor, 200)).filter((e) => e.clientId === client.clientId).slice(0, 20);
+  const [allErrors, contracted] = await Promise.all([listMessageErrors(actor, 200), listClientAutomations(actor, client.clientId)]);
+  const errors = allErrors.filter((e) => e.clientId === client.clientId).slice(0, 20);
   const panelActions = recentActivityForClient(client.clientId, 20);
   return (
     <div className="grid gap-4 xl:grid-cols-2">
+      <Card className="xl:col-span-2">
+        <CardHeader>
+          <CardTitle className="text-base">Automatizaciones contratadas</CardTitle>
+          <CardDescription>
+            Habilita solo las que el cliente ha contratado. Se guardan en la tabla client_automations.
+            {client.active !== true ? " El cliente está desactivado: no recibirá ninguna aunque estén habilitadas." : ""}
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <ClientAutomationsToggles clientId={client.clientId} items={contracted} />
+        </CardContent>
+      </Card>
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Lanzar automatizaciones</CardTitle>

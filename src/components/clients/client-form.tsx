@@ -3,18 +3,23 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Loader2, Save } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useMemo } from "react";
-import { Controller, useForm } from "react-hook-form";
+import { useMemo, useState } from "react";
+import { Controller, useForm, type Resolver } from "react-hook-form";
 import { toast } from "sonner";
 import type { z } from "zod";
+import { GBP_FIELD_DEFAULTS, GbpProfileFields } from "@/components/gbp/gbp-profile-fields";
 import { Button } from "@/components/ui/button";
-import { Field, FieldContent, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field";
+import { Field, FieldContent, FieldDescription, FieldError, FieldGroup, FieldLabel, FieldLegend, FieldSet } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { api, ApiError, toastError } from "@/lib/api-client";
-import { clientFormSchema, type ClientFormValues } from "@/lib/validation/client";
+import { clientCreateSchema, clientFormSchema, type ClientCreateValues } from "@/lib/validation/client";
 
-type Output = z.output<typeof clientFormSchema>;
+// El alta admite además un perfil de Google Business (`gbp`); la edición no.
+type ClientFormValues = ClientCreateValues;
+type Output = z.output<typeof clientCreateSchema>;
+
+
 
 export interface ClientFormInitial {
   clientId?: string;
@@ -32,8 +37,9 @@ const COMMON_TIMEZONES = ["Europe/Madrid", "Atlantic/Canary", "Europe/Lisbon", "
 export function ClientForm({ initial }: { initial?: ClientFormInitial }) {
   const router = useRouter();
   const isEdit = Boolean(initial?.clientId);
+  const [withGbp, setWithGbp] = useState(false);
   const form = useForm<ClientFormValues, unknown, Output>({
-    resolver: zodResolver(clientFormSchema),
+    resolver: (isEdit ? zodResolver(clientFormSchema) : zodResolver(clientCreateSchema)) as Resolver<ClientFormValues, unknown, Output>,
     defaultValues: {
       clientName: initial?.clientName ?? "",
       whatsappE164: initial?.whatsappE164 ?? "",
@@ -42,8 +48,14 @@ export function ClientForm({ initial }: { initial?: ClientFormInitial }) {
       googleSheetTab: initial?.googleSheetTab ?? "",
       timezone: initial?.timezone ?? "Europe/Madrid",
       active: initial?.active ?? true,
+      gbp: null,
     },
   });
+
+  const toggleGbp = (on: boolean) => {
+    setWithGbp(on);
+    form.setValue("gbp", on ? { ...GBP_FIELD_DEFAULTS } : null);
+  };
 
   const timezones = useMemo(() => {
     try {
@@ -62,7 +74,7 @@ export function ClientForm({ initial }: { initial?: ClientFormInitial }) {
         router.refresh();
       } else {
         const created = await api<{ clientId: string }>("/api/clients", { method: "POST", body: values });
-        toast.success("Cliente creado");
+        toast.success(values.gbp ? "Cliente y perfil de Google Business creados" : "Cliente creado");
         router.push(`/clients/${created.clientId}`);
       }
     } catch (error) {
@@ -75,7 +87,7 @@ export function ClientForm({ initial }: { initial?: ClientFormInitial }) {
     }
   };
 
-  const text = (name: Exclude<keyof ClientFormValues, "active">, label: string, opts: { placeholder?: string; description?: string; list?: string; inputMode?: "tel" | "text" } = {}) => (
+  const text = (name: Exclude<keyof ClientFormValues, "active" | "gbp">, label: string, opts: { placeholder?: string; description?: string; list?: string; inputMode?: "tel" | "text" } = {}) => (
     <Controller
       control={form.control}
       name={name}
@@ -109,7 +121,7 @@ export function ClientForm({ initial }: { initial?: ClientFormInitial }) {
         })}
         {text("driveFolderId", "Google Drive Folder ID", { description: "ID de la carpeta donde n8n guarda los archivos." })}
         {text("googleSheetId", "Google Sheet ID")}
-        {text("googleSheetTab", "Google Sheet Tab", { placeholder: "Contenido" })}
+        {text("googleSheetTab", "Google Sheet Tab", { placeholder: "Mtr_plantilla_calendario" })}
         {text("timezone", "Zona horaria", { list: "timezones", placeholder: "Europe/Madrid" })}
         <datalist id="timezones">
           {timezones.map((tz) => (
@@ -130,6 +142,24 @@ export function ClientForm({ initial }: { initial?: ClientFormInitial }) {
           )}
         />
       </FieldGroup>
+      {isEdit ? null : (
+        <FieldSet className="rounded-lg border p-4">
+          <Field orientation="horizontal">
+            <FieldContent>
+              <FieldLegend variant="label">Perfil de Google Business</FieldLegend>
+              <FieldDescription>
+                Crea también su perfil de reseñas, enlazado a este cliente (usa su nombre, WhatsApp y estado).
+              </FieldDescription>
+            </FieldContent>
+            <Switch id="with-gbp" checked={withGbp} onCheckedChange={toggleGbp} aria-label="Añadir perfil de Google Business" />
+          </Field>
+          {withGbp ? (
+            <FieldGroup className="grid gap-5 md:grid-cols-2">
+              <GbpProfileFields control={form.control} prefix="gbp." idSuffix="new-client" />
+            </FieldGroup>
+          ) : null}
+        </FieldSet>
+      )}
       <div className="flex justify-end gap-2">
         {isEdit ? (
           <Button type="button" variant="outline" disabled={!form.formState.isDirty} onClick={() => form.reset()}>

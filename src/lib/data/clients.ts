@@ -6,10 +6,23 @@ import { prisma } from "@/lib/db";
 import type { Prisma } from "@/generated/prisma/client";
 import { CONTENT_DONE_STATUSES } from "@/lib/status";
 import { emptyToNull } from "@/lib/validation/common";
-import type { ClientListQuery } from "@/lib/validation/client";
-import { loadGbpLinker, type GbpLink } from "./client-links";
+import type { ClientCreateInput, ClientListQuery } from "@/lib/validation/client";
+import { assertUniqueLocation, newProfileData } from "./gbp";
 import { contains, digitsOnly, paginated, statusIn } from "./helpers";
 
+
+/** Perfil de Google Business enlazado al cliente (gbp_clients.client_id). */
+export interface GbpLink {
+  gbpClientId: string;
+  locationId: string;
+  active: boolean | null;
+}
+
+const GBP_LINK_SELECT = { select: { id: true, locationId: true, active: true }, orderBy: { createdAt: "asc" } } as const;
+
+function toGbpLinks(profiles: { id: string; locationId: string; active: boolean | null }[]): GbpLink[] {
+  return profiles.map((p) => ({ gbpClientId: p.id, locationId: p.locationId, active: p.active }));
+}
 
 export interface ClientRow {
   clientId: string;
@@ -24,11 +37,7 @@ export interface ClientRow {
   pendingContent: number;
 }
 
-/**
- * Listado de clientes. El filtro "tiene GBP" depende del vínculo deducido
- * (ver client-links.ts), así que se filtra y pagina en memoria: es adecuado
- * para cientos de clientes. Con miles, aplicar la migración 002 y filtrar en SQL.
- */
+/** Listado de clientes (paginado en memoria: adecuado para cientos de clientes). */
 export async function listClients(actor: Actor, query: ClientListQuery) {
   const where: Prisma.ClientWhereInput = { ...clientScope(actor) };
   const and: Prisma.ClientWhereInput[] = [];
@@ -47,23 +56,23 @@ export async function listClients(actor: Actor, query: ClientListQuery) {
   if (query.status === "inactive") and.push({ OR: [{ active: false }, { active: null }] });
   if (query.web === "yes") and.push({ websites: { some: {} } });
   if (query.web === "no") and.push({ websites: { none: {} } });
+  if (query.gbp === "yes") and.push({ gbpProfiles: { some: {} } });
+  if (query.gbp === "no") and.push({ gbpProfiles: { none: {} } });
   if (and.length) where.AND = and;
 
-  const [clients, linker] = await Promise.all([
-    prisma.client.findMany({
-      where,
-      orderBy: [{ createdAt: { sort: "desc", nulls: "last" } }],
-      include: {
-        websites: { select: { websiteUrl: true, active: true }, orderBy: { createdAt: "asc" } },
-        _count: { select: { contentIntakes: true } },
-      },
-    }),
-    loadGbpLinker(actor),
-  ]);
+  const clients = await prisma.client.findMany({
+    where,
+    orderBy: [{ createdAt: { sort: "desc", nulls: "last" } }],
+    include: {
+      websites: { select: { websiteUrl: true, active: true }, orderBy: { createdAt: "asc" } },
+      gbpProfiles: GBP_LINK_SELECT,
+      _count: { select: { contentIntakes: true } },
+    },
+  });
 
   const pendingByClient = await pendingContentByClient(clients.map((c) => c.clientId));
 
-  let rows: ClientRow[] = clients.map((c) => ({
+  const rows: ClientRow[] = clients.map((c) => ({
     clientId: c.clientId,
     clientName: c.clientName,
     whatsappE164: c.whatsappE164,
@@ -71,13 +80,10 @@ export async function listClients(actor: Actor, query: ClientListQuery) {
     createdAt: c.createdAt,
     websiteUrl: c.websites.find((w) => w.active !== false)?.websiteUrl ?? c.websites[0]?.websiteUrl ?? null,
     websiteCount: c.websites.length,
-    gbp: linker(c),
+    gbp: toGbpLinks(c.gbpProfiles),
     contentCount: c._count.contentIntakes,
     pendingContent: pendingByClient.get(c.clientId) ?? 0,
   }));
-
-  if (query.gbp === "yes") rows = rows.filter((r) => r.gbp.length > 0);
-  if (query.gbp === "no") rows = rows.filter((r) => r.gbp.length === 0);
 
   const start = (query.page - 1) * query.pageSize;
   return paginated(rows.slice(start, start + query.pageSize), rows.length, query.page, query.pageSize);
@@ -102,15 +108,15 @@ export async function getClient(actor: Actor, clientId: string) {
 
 export async function getClientOverview(actor: Actor, clientId: string) {
   const client = await getClient(actor, clientId);
-  const [websites, linker, counts] = await Promise.all([
+  const [websites, gbpProfiles, counts] = await Promise.all([
     prisma.clientWebsite.findMany({ where: { clientId }, orderBy: { createdAt: "asc" } }),
-    loadGbpLinker(actor),
+    prisma.gbpClient.findMany({ where: { clientId }, ...GBP_LINK_SELECT }),
     prisma.client.findUnique({
       where: { clientId },
       select: { _count: { select: { contentIntakes: true, contentSessions: true, processedMessages: true } } },
     }),
   ]);
-  return { client, websites, gbpLinks: linker(client), counts: counts?._count };
+  return { client, websites, gbpLinks: toGbpLinks(gbpProfiles), counts: counts?._count };
 }
 
 type ClientInput = {
@@ -123,15 +129,26 @@ type ClientInput = {
   active?: boolean;
 };
 
-export async function createClient(actor: Actor, input: Required<ClientInput>) {
+/** Crea el cliente y, si se indica, su perfil de Google Business en la misma transacción. */
+export async function createClient(actor: Actor, input: ClientCreateInput) {
   if (!isAdmin(actor)) throw new ForbiddenError();
-  await assertUniquePhone(input.whatsappE164);
+  const { gbp, ...clientInput } = input;
+  const clientName = clientInput.clientName.trim();
+  await assertUniquePhone(clientInput.whatsappE164);
   const sameName = await prisma.client.findFirst({
-    where: { clientName: { equals: input.clientName.trim(), mode: "insensitive" } },
+    where: { clientName: { equals: clientName, mode: "insensitive" } },
     select: { clientId: true },
   });
-  if (sameName) throw new ConflictError(`Ya existe un cliente llamado "${input.clientName.trim()}"`);
-  return prisma.client.create({ data: emptyToNull(input) });
+  if (sameName) throw new ConflictError(`Ya existe un cliente llamado "${clientName}"`);
+  if (gbp) await assertUniqueLocation(gbp.locationId);
+
+  return prisma.$transaction(async (tx) => {
+    const client = await tx.client.create({ data: emptyToNull(clientInput) });
+    const gbpProfile = gbp
+      ? await tx.gbpClient.create({ data: { ...newProfileData(client.clientId, gbp), active: clientInput.active } })
+      : null;
+    return { client, gbpProfile };
+  });
 }
 
 export async function updateClient(actor: Actor, clientId: string, input: ClientInput) {
@@ -156,13 +173,13 @@ export async function deleteClient(actor: Actor, clientId: string) {
   const related = await prisma.client.findUnique({
     where: { clientId },
     select: {
-      _count: { select: { websites: true, contentIntakes: true, contentSessions: true, processedMessages: true } },
+      _count: { select: { websites: true, gbpProfiles: true, contentIntakes: true, contentSessions: true, processedMessages: true } },
     },
   });
   const total = Object.values(related?._count ?? {}).reduce((a, b) => a + b, 0);
   if (total > 0) {
     throw new ConflictError(
-      "El cliente tiene webs, contenido o mensajes asociados. Desactívalo en lugar de eliminarlo.",
+      "El cliente tiene webs, perfiles de Google Business, contenido o mensajes asociados. Desactívalo en lugar de eliminarlo.",
     );
   }
   await prisma.client.delete({ where: { clientId } });

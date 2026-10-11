@@ -9,7 +9,7 @@ export interface N8nEnvelope {
   request_id: string;
   requested_at: string;
   requested_by: { id: string; email: string; role: string };
-  /** "clients" (UUID) o "gbp_clients" (INTEGER): indica a qué sistema pertenece client_id. */
+  /** "clients" (UUID) o "gbp_clients" (UUID del perfil): indica a qué sistema pertenece client_id. */
   client_system: "clients" | "gbp_clients" | null;
   client_id: string | number | null;
   resource: { type: string; id: string | number | null };
@@ -68,7 +68,7 @@ export async function callN8nWebhook(
         "x-zihkon-request-id": requestId,
       },
       body,
-      signal: AbortSignal.timeout(N8N_WEBHOOK_TIMEOUT_MS),
+      signal: AbortSignal.timeout(workflow.timeoutMs ?? N8N_WEBHOOK_TIMEOUT_MS),
       cache: "no-store",
     });
   } catch (error) {

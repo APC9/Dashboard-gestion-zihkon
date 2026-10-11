@@ -6,22 +6,30 @@ import { prisma } from "@/lib/db";
 import type { Prisma } from "@/generated/prisma/client";
 import { normalizeStatus, ratingToNumber, ratingVariants, REVIEW_PENDING_STATUSES } from "@/lib/status";
 import { emptyToNull } from "@/lib/validation/common";
-import type { GbpProfileFormValues, ReviewListQuery } from "@/lib/validation/gbp";
+import type { GbpProfileInput, GbpProfileUpdateInput, ReviewListQuery } from "@/lib/validation/gbp";
 import { contains, paginate, paginated, statusIn } from "./helpers";
 
 // ---------------------------------------------------------------------------
 // Perfiles
 // ---------------------------------------------------------------------------
 
+/** El nombre y el WhatsApp del negocio viven en clients (gbp_clients.client_id). */
+export const GBP_CLIENT_SELECT = { select: { clientId: true, clientName: true, whatsappE164: true, active: true } } as const;
+
+/** Nombre visible de un perfil: el de su cliente. */
+export function gbpProfileName(profile: { client?: { clientName: string | null } | null } | null | undefined) {
+  return profile?.client?.clientName ?? "Perfil sin nombre";
+}
+
 export async function listGbpProfiles(actor: Actor, opts: { q?: string; status?: "all" | "active" | "inactive" } = {}) {
   const where: Prisma.GbpClientWhereInput = { ...gbpScope(actor) };
   if (opts.q) {
     where.OR = [
-      { businessName: contains(opts.q) },
+      { client: { clientName: contains(opts.q) } },
+      { client: { whatsappE164: contains(opts.q) } },
       { locationId: contains(opts.q) },
       { accountId: contains(opts.q) },
       { contactEmail: contains(opts.q) },
-      { notificationEmail: contains(opts.q) },
     ];
   }
   if (opts.status === "active") where.active = true;
@@ -29,8 +37,8 @@ export async function listGbpProfiles(actor: Actor, opts: { q?: string; status?:
 
   const profiles = await prisma.gbpClient.findMany({
     where,
-    orderBy: [{ businessName: "asc" }],
-    include: { _count: { select: { reviews: true } } },
+    orderBy: [{ client: { clientName: "asc" } }],
+    include: { client: GBP_CLIENT_SELECT, _count: { select: { reviews: true } } },
   });
   const pending = await prisma.gbpReviewActivity.groupBy({
     by: ["clientId"],
@@ -41,52 +49,66 @@ export async function listGbpProfiles(actor: Actor, opts: { q?: string; status?:
   return profiles.map((p) => ({ ...p, pendingReviews: pendingMap.get(p.id) ?? 0 }));
 }
 
-export async function getGbpProfile(actor: Actor, id: number) {
-  const profile = await prisma.gbpClient.findUnique({ where: { id } });
+export async function getGbpProfile(actor: Actor, id: string) {
+  const profile = await prisma.gbpClient.findUnique({ where: { id }, include: { client: GBP_CLIENT_SELECT } });
   if (!profile) throw new NotFoundError("Perfil de Google Business no encontrado");
   assertGbpAccess(actor, profile.id);
   return profile;
 }
 
-function profileData(input: Partial<GbpProfileFormValues>) {
+/** Datos a escribir en gbp_clients: "" → NULL y retraso vacío → 15. */
+export function profileData(input: GbpProfileUpdateInput) {
   const { delayMinutes, ...rest } = input;
   return { ...emptyToNull(rest), ...(delayMinutes !== undefined ? { delayMinutes } : {}) };
 }
 
-export async function updateGbpProfile(actor: Actor, id: number, input: Partial<GbpProfileFormValues>) {
+/** Datos de alta: igual que `profileData` pero con las columnas NOT NULL tipadas como obligatorias. */
+export function newProfileData(clientId: string, input: Omit<GbpProfileInput, "clientId" | "active"> & { active?: boolean }) {
+  return { ...profileData(input), clientId, locationId: input.locationId, accountId: input.accountId };
+}
+
+export async function updateGbpProfile(actor: Actor, id: string, input: GbpProfileUpdateInput) {
   await getGbpProfile(actor, id);
-  if (input.locationId) await assertNoDuplicateProfile(input.locationId, undefined, id);
-  return prisma.gbpClient.update({ where: { id }, data: profileData(input) });
+  if (input.locationId) await assertUniqueLocation(input.locationId, id);
+  return prisma.gbpClient.update({ where: { id }, data: profileData(input), include: { client: GBP_CLIENT_SELECT } });
 }
 
-export async function createGbpProfile(actor: Actor, input: GbpProfileFormValues) {
+export async function createGbpProfile(actor: Actor, input: GbpProfileInput) {
   if (!isAdmin(actor)) throw new ForbiddenError();
-  await assertNoDuplicateProfile(input.locationId, input.businessName);
-  return prisma.gbpClient.create({ data: profileData(input) });
+  const client = await prisma.client.findUnique({ where: { clientId: input.clientId }, select: { clientId: true } });
+  if (!client) throw new NotFoundError("Cliente no encontrado");
+  await assertUniqueLocation(input.locationId);
+  return prisma.gbpClient.create({ data: newProfileData(input.clientId, input), include: { client: GBP_CLIENT_SELECT } });
 }
 
-/** Evita perfiles duplicados: mismo Location ID o, si no hay, mismo nombre de negocio. */
-async function assertNoDuplicateProfile(locationId: string | undefined, businessName: string | undefined, exceptId?: number) {
-  const location = locationId?.trim();
-  const name = businessName?.trim();
-  const where: Prisma.GbpClientWhereInput = location
-    ? { locationId: { equals: location, mode: "insensitive" } }
-    : name
-      ? { businessName: { equals: name, mode: "insensitive" } }
-      : {};
-  if (!location && !name) return;
-  const existing = await prisma.gbpClient.findFirst({
-    where: { ...where, ...(exceptId ? { NOT: { id: exceptId } } : {}) },
-    select: { id: true, businessName: true },
+/**
+ * Borrado físico solo si el perfil no tiene reseñas ni errores registrados.
+ * En cualquier otro caso se debe desactivar (active = false).
+ */
+export async function deleteGbpProfile(actor: Actor, id: string) {
+  if (!isAdmin(actor)) throw new ForbiddenError();
+  const profile = await getGbpProfile(actor, id);
+  const related = await prisma.gbpClient.findUnique({
+    where: { id },
+    select: { _count: { select: { reviews: true, errors: true } } },
   });
-  if (existing) {
-    throw new ConflictError(
-      `Ya existe un perfil ${location ? "con ese Location ID" : "con ese nombre"}: "${existing.businessName ?? existing.id}"`,
-    );
+  if ((related?._count.reviews ?? 0) + (related?._count.errors ?? 0) > 0) {
+    throw new ConflictError("El perfil tiene reseñas o errores registrados. Desactívalo en lugar de eliminarlo.");
   }
+  await prisma.gbpClient.delete({ where: { id } });
+  return profile;
 }
 
-export async function reviewSummary(actor: Actor, gbpClientIds: number[]) {
+/** location_id es UNIQUE en la BD: se comprueba antes para dar un error legible. */
+export async function assertUniqueLocation(locationId: string, exceptId?: string) {
+  const existing = await prisma.gbpClient.findFirst({
+    where: { locationId: { equals: locationId.trim(), mode: "insensitive" }, ...(exceptId ? { NOT: { id: exceptId } } : {}) },
+    include: { client: GBP_CLIENT_SELECT },
+  });
+  if (existing) throw new ConflictError(`Ya existe un perfil con ese Location ID: "${gbpProfileName(existing)}"`);
+}
+
+export async function reviewSummary(actor: Actor, gbpClientIds: string[]) {
   const ids = gbpClientIds.filter((id) => isAdmin(actor) || actor.gbpClientIds.includes(id));
   if (!ids.length) return null;
   const reviews = await prisma.gbpReviewActivity.findMany({
@@ -136,7 +158,7 @@ export async function listReviews(actor: Actor, query: ReviewListQuery) {
         { reviewerName: contains(query.q) },
         { reviewText: contains(query.q) },
         { reviewId: contains(query.q) },
-        { gbpClient: { businessName: contains(query.q) } },
+        { gbpClient: { client: { clientName: contains(query.q) } } },
       ],
     });
   }
@@ -144,7 +166,7 @@ export async function listReviews(actor: Actor, query: ReviewListQuery) {
   const [items, total] = await Promise.all([
     prisma.gbpReviewActivity.findMany({
       where,
-      include: { gbpClient: { select: { id: true, businessName: true, locationId: true } } },
+      include: { gbpClient: { select: { id: true, locationId: true, client: GBP_CLIENT_SELECT } } },
       orderBy: [{ reviewDate: { sort: "desc", nulls: "last" } }, { id: "desc" }],
       ...paginate(query.page, query.pageSize),
     }),
@@ -156,7 +178,7 @@ export async function listReviews(actor: Actor, query: ReviewListQuery) {
 export async function getReview(actor: Actor, id: number) {
   const review = await prisma.gbpReviewActivity.findUnique({
     where: { id },
-    include: { gbpClient: true, errors: { orderBy: { createdAt: "desc" }, take: 10 } },
+    include: { gbpClient: { include: { client: GBP_CLIENT_SELECT } }, errors: { orderBy: { createdAt: "desc" }, take: 10 } },
   });
   if (!review) throw new NotFoundError("Reseña no encontrada");
   assertGbpAccess(actor, review.clientId);
@@ -209,7 +231,7 @@ export async function scheduleReview(actor: Actor, id: number, scheduledPublishD
 // Errores
 // ---------------------------------------------------------------------------
 
-export async function listGbpErrors(actor: Actor, opts: { q?: string; gbpClientId?: number; take?: number } = {}) {
+export async function listGbpErrors(actor: Actor, opts: { q?: string; gbpClientId?: string; take?: number } = {}) {
   const where: Prisma.GbpAutomationErrorWhereInput = isAdmin(actor)
     ? {}
     : { clientId: { in: actor.gbpClientIds } };
@@ -218,7 +240,7 @@ export async function listGbpErrors(actor: Actor, opts: { q?: string; gbpClientI
   return prisma.gbpAutomationError.findMany({
     where,
     include: {
-      gbpClient: { select: { id: true, businessName: true } },
+      gbpClient: { select: { id: true, client: GBP_CLIENT_SELECT } },
       review: { select: { id: true, reviewId: true, reviewerName: true } },
     },
     orderBy: [{ createdAt: { sort: "desc", nulls: "last" } }],

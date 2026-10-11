@@ -88,7 +88,7 @@ export default async function AutomationsPage() {
     ...gbpErrors.map((e) => ({
       id: `gbp-${e.id}`,
       name: `Reseñas GBP · ${e.stage ?? "error"}`,
-      client: e.gbpClient ? { label: e.gbpClient.businessName ?? `Perfil ${e.gbpClient.id}`, href: `/gbp/profiles/${e.gbpClient.id}` } : null,
+      client: e.gbpClient ? { label: e.gbpClient.client.clientName ?? "Perfil sin nombre", href: `/gbp/profiles/${e.gbpClient.id}` } : null,
       type: "Google Business",
       at: e.createdAt,
       status: "ERROR",

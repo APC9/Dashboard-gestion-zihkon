@@ -44,7 +44,7 @@ export default async function ReviewDetailPage({ params }: { params: Promise<{ i
           <>
             {review.gbpClient ? (
               <Link href={`/gbp/profiles/${review.gbpClient.id}`} className="hover:underline">
-                {review.gbpClient.businessName}
+                {review.gbpClient.client.clientName ?? "Perfil sin nombre"}
               </Link>
             ) : (
               "Negocio desconocido"

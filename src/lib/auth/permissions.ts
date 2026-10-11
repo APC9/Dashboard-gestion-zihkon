@@ -22,13 +22,13 @@ export function assertClientAccess(actor: Actor, clientId: string | null | undef
   if (!canAccessClient(actor, clientId)) throw new ForbiddenError();
 }
 
-/** ¿Puede el actor acceder al perfil GBP (INTEGER) indicado? */
-export function canAccessGbpClient(actor: Actor, gbpClientId: number | null | undefined): boolean {
+/** ¿Puede el actor acceder al perfil GBP (gbp_clients.id, UUID) indicado? */
+export function canAccessGbpClient(actor: Actor, gbpClientId: string | null | undefined): boolean {
   if (isAdmin(actor)) return true;
   return gbpClientId != null && actor.gbpClientIds.includes(gbpClientId);
 }
 
-export function assertGbpAccess(actor: Actor, gbpClientId: number | null | undefined) {
+export function assertGbpAccess(actor: Actor, gbpClientId: string | null | undefined) {
   if (!canAccessGbpClient(actor, gbpClientId)) throw new ForbiddenError();
 }
 
@@ -41,12 +41,12 @@ export function clientScope(actor: Actor): { clientId?: string } {
   return { clientId: actor.clientId ?? "00000000-0000-0000-0000-000000000000" };
 }
 
-export function gbpScope(actor: Actor): { id?: { in: number[] } } {
+export function gbpScope(actor: Actor): { id?: { in: string[] } } {
   if (isAdmin(actor)) return {};
   return { id: { in: actor.gbpClientIds } };
 }
 
-export function gbpReviewScope(actor: Actor): { clientId?: { in: number[] } } {
+export function gbpReviewScope(actor: Actor): { clientId?: { in: string[] } } {
   if (isAdmin(actor)) return {};
   return { clientId: { in: actor.gbpClientIds } };
 }

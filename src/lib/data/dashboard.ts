@@ -136,7 +136,7 @@ export async function getRecentActivity(actor: Actor, limit = 15): Promise<Activ
     prisma.gbpReviewActivity.findMany({
       orderBy: [{ createdDate: { sort: "desc", nulls: "last" } }],
       take: limit,
-      include: { gbpClient: { select: { businessName: true } } },
+      include: { gbpClient: { select: { client: { select: { clientName: true } } } } },
     }),
     prisma.contentIntake.findMany({
       orderBy: [{ createdAt: { sort: "desc", nulls: "last" } }],
@@ -157,7 +157,7 @@ export async function getRecentActivity(actor: Actor, limit = 15): Promise<Activ
     prisma.gbpAutomationError.findMany({
       orderBy: [{ createdAt: { sort: "desc", nulls: "last" } }],
       take: limit,
-      include: { gbpClient: { select: { businessName: true } } },
+      include: { gbpClient: { select: { client: { select: { clientName: true } } } } },
     }),
     prisma.processedMessage.findMany({
       where: { error: { not: null } },
@@ -174,7 +174,7 @@ export async function getRecentActivity(actor: Actor, limit = 15): Promise<Activ
         id: `review-${r.id}`,
         at: r.createdDate ?? r.reviewDate,
         kind: "review" as const,
-        title: `${r.gbpClient?.businessName ?? "Un negocio"} recibió una nueva reseña${stars ? ` (${stars}★)` : ""}`,
+        title: `${r.gbpClient?.client.clientName ?? "Un negocio"} recibió una nueva reseña${stars ? ` (${stars}★)` : ""}`,
         href: `/gbp/reviews/${r.id}`,
       };
     }),
@@ -203,7 +203,7 @@ export async function getRecentActivity(actor: Actor, limit = 15): Promise<Activ
       id: `gbperr-${e.id}`,
       at: e.createdAt,
       kind: "error" as const,
-      title: `Error en automatización GBP${e.stage ? ` (${e.stage})` : ""}${e.gbpClient?.businessName ? ` · ${e.gbpClient.businessName}` : ""}`,
+      title: `Error en automatización GBP${e.stage ? ` (${e.stage})` : ""}${e.gbpClient?.client.clientName ? ` · ${e.gbpClient.client.clientName}` : ""}`,
       href: "/gbp/errors",
     })),
     ...msgErrors.map((m) => ({

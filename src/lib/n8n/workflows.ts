@@ -26,6 +26,8 @@ export interface WorkflowDefinition<S extends z.ZodType = z.ZodType> {
   data: S;
   /** Se puede lanzar manualmente desde la página Automatizaciones. */
   manual: boolean;
+  /** Timeout propio en ms (por defecto N8N_WEBHOOK_TIMEOUT_MS). */
+  timeoutMs?: number;
 }
 
 function defineWorkflow<S extends z.ZodType>(def: WorkflowDefinition<S>) {
@@ -131,6 +133,19 @@ export const WORKFLOWS = {
     defaultPath: "zihkon/gbp/sync-reviews",
     data: empty,
     manual: true,
+  }),
+  gbpListAccounts: defineWorkflow({
+    id: "gbp-list-accounts",
+    name: "Consultar cuentas y fichas de Google",
+    description: "Lista las cuentas de Google Business Profile y sus fichas (account_id y location_id).",
+    category: "gbp",
+    resource: "none",
+    envPath: "N8N_PATH_GBP_LIST_ACCOUNTS",
+    defaultPath: "zihkon/gbp/accounts",
+    data: empty,
+    manual: false,
+    // Recorre todas las cuentas y fichas en la API de Google: tarda más que el resto.
+    timeoutMs: 30_000,
   }),
   auditGeneration: defineWorkflow({
     id: "audit-generation",

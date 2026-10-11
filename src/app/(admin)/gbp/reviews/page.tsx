@@ -6,7 +6,6 @@ import { PageHeader } from "@/components/shared/page-header";
 import { PaginationBar } from "@/components/shared/pagination-bar";
 import { ClearFilters, FilterBar, SearchFilter, SelectFilter } from "@/components/shared/url-filters";
 import { requireAdminPage } from "@/lib/auth/session";
-import { loadClientIndexForGbp } from "@/lib/data/client-links";
 import { listGbpProfiles, listReviews } from "@/lib/data/gbp";
 import { REVIEW_STATUSES, statusLabel } from "@/lib/status";
 import { reviewListQuerySchema } from "@/lib/validation/gbp";
@@ -17,17 +16,8 @@ export default async function ReviewsPage({ searchParams }: { searchParams: Prom
   const actor = await requireAdminPage();
   const parsed = reviewListQuerySchema.safeParse(await searchParams);
   const query = parsed.success ? parsed.data : reviewListQuerySchema.parse({});
-  const [result, clientIndex, profiles] = await Promise.all([
-    listReviews(actor, query),
-    loadClientIndexForGbp(actor),
-    listGbpProfiles(actor),
-  ]);
-  const profileName = query.gbpClientId ? profiles.find((p) => p.id === query.gbpClientId)?.businessName : null;
-
-  const rows = result.items.map((r) => ({
-    ...r,
-    zihkonClient: r.clientId != null ? (clientIndex.get(r.clientId) ?? null) : null,
-  }));
+  const [result, profiles] = await Promise.all([listReviews(actor, query), listGbpProfiles(actor)]);
+  const profileName = query.gbpClientId ? profiles.find((p) => p.id === query.gbpClientId)?.client.clientName : null;
 
   return (
     <>
@@ -49,7 +39,7 @@ export default async function ReviewsPage({ searchParams }: { searchParams: Prom
         <GbpNav active="reviews" />
       </PageHeader>
       <FilterBar>
-        <SearchFilter placeholder="Autor, texto, negocio o Review ID…" />
+        <SearchFilter placeholder="Autor, texto, cliente o Review ID…" />
         <SelectFilter
           param="status"
           label="Estado"
@@ -67,13 +57,13 @@ export default async function ReviewsPage({ searchParams }: { searchParams: Prom
         />
         <SelectFilter
           param="gbpClientId"
-          label="Negocio"
+          label="Cliente"
           className="sm:w-56"
-          options={[{ value: "all", label: "Todos los negocios" }, ...profiles.map((p) => ({ value: String(p.id), label: p.businessName ?? `Perfil ${p.id}` }))]}
+          options={[{ value: "all", label: "Todos los clientes" }, ...profiles.map((p) => ({ value: p.id, label: p.client.clientName ?? "Perfil sin nombre" }))]}
         />
         <ClearFilters keys={["q", "status", "rating", "gbpClientId"]} />
       </FilterBar>
-      <ReviewsTable rows={rows} />
+      <ReviewsTable rows={result.items} />
       <PaginationBar page={result.page} pageCount={result.pageCount} total={result.total} label="reseñas" />
     </>
   );

@@ -23,8 +23,8 @@ export const PATCH = route(async (req, ctx: Ctx) => {
     input.generatedResponse !== undefined ? await updateReviewResponse(actor, id, input.generatedResponse) : review;
   await logActivity(actor, {
     action: "gbp.review.edit",
-    clientId: review.clientId != null ? String(review.clientId) : null,
-    clientLabel: review.gbpClient?.businessName,
+    clientId: review.clientId,
+    clientLabel: review.gbpClient?.client.clientName,
     resourceType: "gbp_review",
     resourceId: String(id),
     ip: getRequestIp(req),

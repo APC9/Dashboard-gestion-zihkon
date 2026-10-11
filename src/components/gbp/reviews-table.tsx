@@ -20,8 +20,7 @@ export interface ReviewRow {
   status: string | null;
   reviewDate: Date | string | null;
   createdDate: Date | string | null;
-  gbpClient: { id: number; businessName: string | null } | null;
-  zihkonClient: { clientId: string; clientName: string | null } | null;
+  gbpClient: { id: string; client: { clientId: string; clientName: string | null } } | null;
 }
 
 export function ReviewsTable({ rows }: { rows: ReviewRow[] }) {
@@ -30,21 +29,15 @@ export function ReviewsTable({ rows }: { rows: ReviewRow[] }) {
     {
       id: "client",
       header: "Cliente",
-      enableSorting: false,
+      accessorFn: (r) => r.gbpClient?.client.clientName ?? "",
       cell: ({ row }) =>
-        row.original.zihkonClient ? (
-          <Link href={`/clients/${row.original.zihkonClient.clientId}?tab=gbp`} className="text-sm hover:underline">
-            {row.original.zihkonClient.clientName}
+        row.original.gbpClient ? (
+          <Link href={`/clients/${row.original.gbpClient.client.clientId}?tab=gbp`} className="text-sm font-medium hover:underline">
+            {row.original.gbpClient.client.clientName ?? "Sin nombre"}
           </Link>
         ) : (
           <span className="text-sm text-muted-foreground">—</span>
         ),
-    },
-    {
-      id: "business",
-      header: "Negocio",
-      accessorFn: (r) => r.gbpClient?.businessName ?? "",
-      cell: ({ row }) => <span className="text-sm font-medium">{row.original.gbpClient?.businessName ?? "—"}</span>,
     },
     {
       accessorKey: "reviewerName",

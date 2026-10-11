@@ -56,21 +56,18 @@ npm run dev
   Revisa nulabilidad, tipos (`TIMESTAMP` vs `TIMESTAMPTZ`) y defaults antes del primer despliegue. Lo recomendable es conectar con un usuario de PostgreSQL con permisos `SELECT/INSERT/UPDATE/DELETE` y sin `CREATE/ALTER/DROP`.
 - El panel **prefiere desactivar** (`active = false`). Borrar un cliente solo se permite si no tiene datos asociados.
 
-### clients (UUID) ↔ gbp_clients (INTEGER)
+### clients ↔ gbp_clients
 
-No existe relación en la BD. `src/lib/data/client-links.ts` deduce el vínculo **en la aplicación** (sin escribir nada):
-
-1. mismo WhatsApp (solo dígitos) → coincidencia fuerte
-2. mismo nombre normalizado → coincidencia "sin confirmar"
-
-Sirve para el ADMIN, pero **no** se usa para dar acceso a usuarios CLIENT.
+`gbp_clients.client_id` es una FK obligatoria a `clients.client_id` (`ON DELETE RESTRICT`). Un cliente puede tener
+varios perfiles (uno por ubicación). El nombre y el WhatsApp del negocio **no** se guardan en `gbp_clients`: se leen
+siempre de `clients`. Los IDs de `gbp_clients` son UUID; `gbp_review_activity.client_id` y
+`gbp_automation_errors.client_id` apuntan a `gbp_clients.id`.
 
 ### Migraciones propuestas (no se ejecutan solas)
 
 | Archivo | Qué hace | Cuándo |
 |---|---|---|
 | `prisma/proposed-migrations/001_admin_activity_log.sql` | Tabla nueva para el histórico de acciones del panel | Cuando quieras histórico permanente |
-| `prisma/proposed-migrations/002_link_clients_gbp.sql` | Columna nullable `gbp_clients.zihkon_client_id` | Antes del portal de cliente |
 | `prisma/proposed-migrations/003_admin_users.sql` | Tabla `panel_users` con roles ADMIN/CLIENT | FASE 2 |
 
 Todas son aditivas (no eliminan ni modifican columnas existentes). Revisa y ejecuta manualmente (p. ej. desde DBeaver) cuando decidas.
@@ -93,7 +90,7 @@ Todas son aditivas (no eliminan ni modifican columnas existentes). Revisa y ejec
 
 - `workflows.ts` — catálogo de workflows (id, ruta por defecto, variable de entorno, esquema Zod de datos).
 - `client.ts` — llamada HTTP firmada al webhook.
-- `triggers.ts` — `triggerContentGeneration()`, `triggerWebsiteChange()`, `triggerWebsitePreview()`, `triggerWebsitePublish()`, `triggerGbpReviewApproval()`, `triggerGbpReviewPublication()`, `triggerGbpReviewRegeneration()`, `triggerAuditGeneration()`. Cada una: autentica → valida → verifica recurso y permisos → envía `client_id` + id del recurso → registra → devuelve resultado → normaliza errores.
+- `triggers.ts` — `triggerContentGeneration()`, `triggerWebsiteChange()`, `triggerWebsitePreview()`, `triggerWebsitePublish()`, `triggerGbpReviewApproval()`, `triggerGbpReviewPublication()`, `triggerGbpReviewRegeneration()`, `triggerAuditGeneration()`, `triggerGbpListAccounts()`. Cada una: autentica → valida → verifica recurso y permisos → envía `client_id` + id del recurso → registra → devuelve resultado → normaliza errores.
 - `api.ts` — lectura opcional de ejecuciones con la API REST de n8n.
 
 ### Configurar un webhook en n8n
@@ -111,13 +108,30 @@ Cuerpo recibido:
   "requested_at": "2026-10-08T10:42:00.000Z",
   "requested_by": { "id": "admin", "email": "admin@zihkon.com", "role": "ADMIN" },
   "client_system": "gbp_clients",
-  "client_id": 12,
+  "client_id": "f7612649-6fe0-4c4e-a33c-45b3428cf77e",
   "resource": { "type": "gbp_review", "id": 345 },
-  "data": { "review_id": "…", "location_id": "…", "account_id": "…" }
+  "data": { "review_id": "…", "location_id": "…", "account_id": "…", "zihkon_client_id": "uuid" }
 }
 ```
 
-`client_system` indica si `client_id` es un UUID de `clients` o un id de `gbp_clients`.
+`client_system` indica si `client_id` es el UUID de `clients` o el UUID de un perfil de `gbp_clients` (en ese caso `data.zihkon_client_id` es el cliente).
+
+### Consultar cuentas y fichas de Google (`gbp-list-accounts`)
+
+Página *Google Business → Cuentas de Google* (`/gbp/accounts`, solo administradores). Al pulsar «Consultar en Google» el panel llama a `POST /api/gbp/accounts`, que lanza el webhook `zihkon/gbp/accounts` (`N8N_PATH_GBP_LIST_ACCOUNTS`) con `resource.type = "global"` y `data = {}`. Timeout propio de 30 s (el resto usa `N8N_WEBHOOK_TIMEOUT_MS`).
+
+Respuesta esperada de n8n (se valida con Zod; si no cumple el esquema se muestra un error):
+
+```json
+// HTTP 200
+{ "ok": true, "count": 2, "items": [
+  { "account_id": "100942243931077822997", "account_name": "Zihkon", "location_id": "17992834784523084306", "title": "Zihkon", "address": "Calle 1, Estepona" }
+] }
+// HTTP 502
+{ "ok": false, "error": "mensaje" }
+```
+
+`location_id`, `title` y `address` pueden ser `null` si la cuenta no tiene fichas; esas cuentas no se muestran. Las fichas cuyo `location_id` ya existe en `gbp_clients` se marcan «Ya dado de alta»; el resto enlaza a `/gbp/profiles/new?accountId=…&locationId=…` con los IDs rellenados.
 
 El panel solo cambia el estado de una reseña cuando es una decisión humana (aprobar → `APPROVED`/`SCHEDULED`, rechazar → `REJECTED`). `PUBLISHED` lo escribe n8n cuando Google confirma la publicación. Si n8n falla, el cambio en BD se mantiene y se muestra un aviso.
 
@@ -153,6 +167,7 @@ dev/                        BD de desarrollo (no producción)
 | GET/POST, GET/PATCH | `/api/gbp/profiles`, `/api/gbp/profiles/[id]` | perfiles GBP |
 | GET, GET/PATCH | `/api/gbp/reviews`, `/api/gbp/reviews/[id]` | bandeja / editar respuesta |
 | POST | `/api/gbp/reviews/[id]/{approve,reject,publish,regenerate,schedule}` | acciones |
+| POST | `/api/gbp/accounts` | consultar cuentas y fichas de Google → n8n (admin) |
 | GET | `/api/gbp/errors` | errores GBP |
 | GET, GET/PATCH | `/api/content`, `/api/content/[id]` | contenido / editar descripción |
 | POST | `/api/content/[id]/{generate,cancel}` | n8n / cancelar |
@@ -165,5 +180,5 @@ dev/                        BD de desarrollo (no producción)
 
 ## Próximas fases
 
-- **FASE 2**: aplicar migraciones 002 y 003, `authorize` contra `panel_users`, portal `/portal` para CLIENT (los filtros de ámbito ya están en la capa de datos), integraciones GitHub/Netlify vía n8n.
+- **FASE 2**: aplicar la migración 003, `authorize` contra `panel_users`, portal `/portal` para CLIENT (los filtros de ámbito ya están en la capa de datos), integraciones GitHub/Netlify vía n8n.
 - **FASE 3**: suscripciones, facturación, analytics, IA avanzada.

@@ -38,7 +38,7 @@ export interface ClientTableRow {
   createdAt: Date | string | null;
   websiteUrl: string | null;
   websiteCount: number;
-  gbp: { gbpClientId: number; businessName: string | null; matchedBy: "whatsapp" | "name" }[];
+  gbp: { gbpClientId: string; locationId: string; active: boolean | null }[];
   contentCount: number;
   pendingContent: number;
 }
@@ -91,17 +91,15 @@ export function ClientsTable({ rows }: { rows: ClientTableRow[] }) {
       cell: ({ row }) => {
         const links = row.original.gbp;
         if (!links.length) return <span className="text-sm text-muted-foreground">—</span>;
-        const strong = links.some((l) => l.matchedBy === "whatsapp");
+        const active = links.some((l) => l.active !== false);
         return (
           <Tooltip>
             <TooltipTrigger asChild>
-              <Link href={`/gbp/profiles/${links[0].gbpClientId}`}>
-                <StatusBadge tone={strong ? "success" : "warning"} label={links.length > 1 ? `${links.length} perfiles` : "Vinculado"} />
+              <Link href={`/clients/${row.original.clientId}?tab=gbp`}>
+                <StatusBadge tone={active ? "success" : "warning"} label={links.length > 1 ? `${links.length} perfiles` : active ? "Activo" : "Inactivo"} />
               </Link>
             </TooltipTrigger>
-            <TooltipContent>
-              {links.map((l) => l.businessName).join(", ")} · coincidencia por {strong ? "WhatsApp" : "nombre (sin confirmar)"}
-            </TooltipContent>
+            <TooltipContent>{links.map((l) => l.locationId).join(", ")}</TooltipContent>
           </Tooltip>
         );
       },

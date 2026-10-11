@@ -4,6 +4,7 @@ import { cn } from "@/lib/utils";
 const ITEMS = [
   { href: "/gbp/profiles", label: "Perfiles", key: "profiles" },
   { href: "/gbp/reviews", label: "Reseñas", key: "reviews" },
+  { href: "/gbp/accounts", label: "Cuentas de Google", key: "accounts" },
   { href: "/gbp/errors", label: "Errores", key: "errors" },
 ] as const;
 

@@ -29,6 +29,7 @@ export const NAV_MAIN: NavItem[] = [
     children: [
       { title: "Perfiles", href: "/gbp/profiles" },
       { title: "Reseñas", href: "/gbp/reviews" },
+      { title: "Cuentas de Google", href: "/gbp/accounts" },
       { title: "Errores", href: "/gbp/errors" },
     ],
   },

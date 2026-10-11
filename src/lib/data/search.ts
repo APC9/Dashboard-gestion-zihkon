@@ -42,19 +42,18 @@ export async function globalSearch(actor: Actor, q: string, perGroup = 5): Promi
       where: {
         ...gbpScope(actor),
         OR: [
-          { businessName: contains(term) },
+          { client: { clientName: contains(term) } },
           { locationId: contains(term) },
           { contactEmail: contains(term) },
-          { notificationEmail: contains(term) },
-          ...phoneFilter,
+          ...phoneFilter.map((f) => ({ client: f })),
         ],
       },
-      select: { id: true, businessName: true, locationId: true },
+      select: { id: true, locationId: true, client: { select: { clientName: true } } },
       take: perGroup,
     }),
     prisma.gbpReviewActivity.findMany({
       where: { ...gbpReviewScope(actor), OR: [{ reviewId: contains(term) }, { reviewerName: contains(term) }] },
-      select: { id: true, reviewId: true, reviewerName: true, gbpClient: { select: { businessName: true } } },
+      select: { id: true, reviewId: true, reviewerName: true, gbpClient: { select: { client: { select: { clientName: true } } } } },
       take: perGroup,
     }),
     isAdmin(actor)
@@ -84,14 +83,14 @@ export async function globalSearch(actor: Actor, q: string, perGroup = 5): Promi
     ...profiles.map((p) => ({
       id: `g-${p.id}`,
       group: "Google Business" as const,
-      title: p.businessName ?? "Sin nombre",
+      title: p.client.clientName ?? "Sin nombre",
       subtitle: p.locationId,
       href: `/gbp/profiles/${p.id}`,
     })),
     ...reviews.map((r) => ({
       id: `r-${r.id}`,
       group: "Reseñas" as const,
-      title: `${r.reviewerName ?? "Anónimo"} · ${r.gbpClient?.businessName ?? ""}`,
+      title: `${r.reviewerName ?? "Anónimo"} · ${r.gbpClient?.client.clientName ?? ""}`,
       subtitle: r.reviewId,
       href: `/gbp/reviews/${r.id}`,
     })),

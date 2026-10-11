@@ -21,8 +21,8 @@ export const POST = route(async (req) => {
   const profile = await createGbpProfile(actor, input);
   await logActivity(actor, {
     action: "gbp.profile.create",
-    clientId: String(profile.id),
-    clientLabel: profile.businessName,
+    clientId: profile.id,
+    clientLabel: profile.client.clientName,
     resourceType: "gbp_profile",
     resourceId: String(profile.id),
     ip: getRequestIp(req),

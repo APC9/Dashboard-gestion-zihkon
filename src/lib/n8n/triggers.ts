@@ -95,34 +95,38 @@ async function resolveTarget(actor: Actor, workflow: WorkflowDefinition, resourc
     }
     case "review": {
       const id = intId.parse(resourceId);
-      const review = await prisma.gbpReviewActivity.findUnique({ where: { id }, include: { gbpClient: true } });
+      const review = await prisma.gbpReviewActivity.findUnique({
+        where: { id },
+        include: { gbpClient: { include: { client: { select: { clientName: true } } } } },
+      });
       if (!review) throw new NotFoundError("Reseña no encontrada");
       assertGbpAccess(actor, review.clientId);
       return {
         clientSystem: "gbp_clients",
         clientId: review.clientId,
-        clientLabel: review.gbpClient?.businessName ?? null,
+        clientLabel: review.gbpClient?.client.clientName ?? null,
         resourceType: "gbp_review",
         resourceId: review.id,
         context: {
           review_id: review.reviewId,
           location_id: review.gbpClient?.locationId,
           account_id: review.gbpClient?.accountId,
+          zihkon_client_id: review.gbpClient?.clientId,
         },
       };
     }
     case "gbp_profile": {
-      const id = intId.parse(resourceId);
-      const profile = await prisma.gbpClient.findUnique({ where: { id } });
+      const id = z.string().uuid("ID no válido").parse(resourceId);
+      const profile = await prisma.gbpClient.findUnique({ where: { id }, include: { client: { select: { clientName: true } } } });
       if (!profile) throw new NotFoundError("Perfil de Google Business no encontrado");
       assertGbpAccess(actor, profile.id);
       return {
         clientSystem: "gbp_clients",
         clientId: profile.id,
-        clientLabel: profile.businessName,
+        clientLabel: profile.client.clientName,
         resourceType: "gbp_profile",
         resourceId: profile.id,
-        context: { location_id: profile.locationId, account_id: profile.accountId },
+        context: { location_id: profile.locationId, account_id: profile.accountId, zihkon_client_id: profile.clientId },
       };
     }
     case "audit": {
@@ -252,3 +256,6 @@ export const triggerAuditGeneration = (
   data: z.input<typeof WORKFLOWS.auditGeneration.data>,
   req?: Request,
 ) => triggerWorkflow(actor, WORKFLOWS.auditGeneration.id, { data }, req);
+
+export const triggerGbpListAccounts = (actor: Actor, req?: Request) =>
+  triggerWorkflow(actor, WORKFLOWS.gbpListAccounts.id, {}, req);

@@ -13,8 +13,8 @@
 //    certeza la nulabilidad real; así una fila con NULL nunca rompe la lectura.
 //  - Las relaciones se declaran a nivel Prisma para poder hacer `include`.
 //    Prisma no necesita que existan FOREIGN KEYs reales para consultar.
-//  - clients (UUID) y gbp_clients (INTEGER) NO están relacionados.
-//    Ver prisma/proposed-migrations/002_link_clients_gbp.sql.
+//  - gbp_clients.client_id → clients.client_id (FK real, ON DELETE RESTRICT).
+//    El nombre y el WhatsApp del negocio se leen siempre de clients.
 // =============================================================================
 
 generator client {
@@ -45,6 +45,8 @@ model Client {
   contentIntakes    ContentIntake[]
   contentSessions   ContentSession[]
   processedMessages ProcessedMessage[]
+  gbpProfiles       GbpClient[]
+  automations       ClientAutomation[]
 
   @@map("clients")
 }
@@ -169,28 +171,27 @@ model ProcessedMessage {
 }
 
 // -----------------------------------------------------------------------------
-// Google Business Profile (sistema independiente, IDs INTEGER)
+// Google Business Profile (perfiles enlazados a clients por client_id)
 // -----------------------------------------------------------------------------
 
 model GbpClient {
-  id                   Int       @id @default(autoincrement())
-  businessName         String?   @map("business_name")
-  locationId           String?   @map("location_id")
-  accountId            String?   @map("account_id")
+  id                   String    @id @default(uuid()) @db.Uuid
+  clientId             String    @map("client_id") @db.Uuid
+  locationId           String    @map("location_id")
+  accountId            String    @map("account_id")
   businessType         String?   @map("business_type")
   active               Boolean?
   responseTone         String?   @map("response_tone")
   preferredLanguage    String?   @map("preferred_language")
   responseMode         String?   @map("response_mode")
   customAiInstructions String?   @map("custom_ai_instructions")
-  notificationEmail    String?   @map("notification_email")
   telegramChatId       String?   @map("telegram_chat_id")
-  whatsappE164         String?   @map("whatsapp_e164")
   delayMinutes         Int?      @map("delay_minutes")
   contactEmail         String?   @map("contact_email")
   createdAt            DateTime? @default(now()) @map("created_at")
   updatedAt            DateTime? @updatedAt @map("updated_at")
 
+  client  Client               @relation(fields: [clientId], references: [clientId])
   reviews GbpReviewActivity[]
   errors  GbpAutomationError[]
 
@@ -199,7 +200,7 @@ model GbpClient {
 
 model GbpReviewActivity {
   id                   Int       @id @default(autoincrement())
-  clientId             Int?      @map("client_id")
+  clientId             String?   @map("client_id") @db.Uuid
   reviewId             String?   @map("review_id")
   reviewerName         String?   @map("reviewer_name")
   rating               String?
@@ -223,7 +224,7 @@ model GbpReviewActivity {
 model GbpAutomationError {
   id           Int       @id @default(autoincrement())
   stage        String?
-  clientId     Int?      @map("client_id")
+  clientId     String?   @map("client_id") @db.Uuid
   reviewDbId   Int?      @map("review_db_id")
   errorMessage String?   @map("error_message")
   createdAt    DateTime? @default(now()) @map("created_at")
@@ -265,4 +266,35 @@ model AutomationAdmin {
   createdAt DateTime? @default(now()) @map("created_at")
 
   @@map("automation_admins")
+}
+
+// -----------------------------------------------------------------------------
+// Automatizaciones contratadas por cliente (proposed-migrations/004)
+// -----------------------------------------------------------------------------
+
+model AutomationCatalog {
+  automationKey String    @id @map("automation_key")
+  name          String
+  description   String?
+  sortOrder     Int       @default(0) @map("sort_order")
+  active        Boolean   @default(true)
+  createdAt     DateTime? @default(now()) @map("created_at") @db.Timestamptz
+
+  clients ClientAutomation[]
+
+  @@map("automation_catalog")
+}
+
+model ClientAutomation {
+  clientId      String    @map("client_id") @db.Uuid
+  automationKey String    @map("automation_key")
+  enabled       Boolean   @default(true)
+  createdAt     DateTime? @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt     DateTime? @updatedAt @map("updated_at") @db.Timestamptz
+
+  client     Client            @relation(fields: [clientId], references: [clientId], onDelete: Cascade)
+  automation AutomationCatalog @relation(fields: [automationKey], references: [automationKey])
+
+  @@id([clientId, automationKey])
+  @@map("client_automations")
 }

@@ -12,7 +12,7 @@ export default async function NewClientPage() {
     <>
       <PageHeader
         title="Nuevo cliente"
-        description="Crea el cliente en PostgreSQL. Después podrás añadir su web y configurar Google Business."
+        description="Crea el cliente en PostgreSQL y, si quieres, su perfil de Google Business. Después podrás añadir su web."
         back={{ href: "/clients", label: "Clientes" }}
       />
       <Card className="max-w-4xl">

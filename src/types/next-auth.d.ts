@@ -7,7 +7,7 @@ declare module "next-auth" {
       id: string;
       role: Role;
       clientId: string | null;
-      gbpClientIds: number[];
+      gbpClientIds: string[];
     };
   }
 }
@@ -16,6 +16,6 @@ declare module "next-auth/jwt" {
   interface JWT {
     role: Role;
     clientId: string | null;
-    gbpClientIds: number[];
+    gbpClientIds: string[];
   }
 }

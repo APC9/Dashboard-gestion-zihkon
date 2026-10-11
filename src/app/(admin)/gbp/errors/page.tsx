@@ -15,7 +15,7 @@ export const metadata: Metadata = { title: "Errores de Google Business" };
 
 const querySchema = z.object({
   q: z.string().trim().max(100).optional().catch(undefined),
-  gbpClientId: z.coerce.number().int().positive().optional().catch(undefined),
+  gbpClientId: z.string().uuid().optional().catch(undefined),
 });
 
 export default async function GbpErrorsPage({ searchParams }: { searchParams: Promise<Record<string, string>> }) {
@@ -56,7 +56,7 @@ export default async function GbpErrorsPage({ searchParams }: { searchParams: Pr
                     <TableCell className="text-sm">
                       {e.gbpClient ? (
                         <Link href={`/gbp/profiles/${e.gbpClient.id}`} className="hover:underline">
-                          {e.gbpClient.businessName}
+                          {e.gbpClient.client.clientName ?? "Perfil sin nombre"}
                         </Link>
                       ) : (
                         "—"

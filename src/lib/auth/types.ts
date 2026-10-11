@@ -16,5 +16,5 @@ export interface Actor {
   /** Solo para CLIENT: client_id (UUID) de clients al que pertenece. */
   clientId: string | null;
   /** Solo para CLIENT: ids de gbp_clients vinculados explícitamente. */
-  gbpClientIds: number[];
+  gbpClientIds: string[];
 }

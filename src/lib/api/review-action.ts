@@ -23,15 +23,15 @@ export async function safeTrigger(fn: () => Promise<TriggerResult>): Promise<N8n
 export async function logReviewAction(
   actor: Actor,
   req: Request,
-  review: { id: number; reviewId: string | null; clientId: number | null; gbpClient?: { businessName: string | null } | null },
+  review: { id: number; reviewId: string | null; clientId: string | null; gbpClient?: { client?: { clientName: string | null } | null } | null },
   action: string,
   message: string,
   n8n?: N8nOutcome | null,
 ) {
   await logActivity(actor, {
     action,
-    clientId: review.clientId != null ? String(review.clientId) : null,
-    clientLabel: review.gbpClient?.businessName,
+    clientId: review.clientId,
+    clientLabel: review.gbpClient?.client?.clientName,
     resourceType: "gbp_review",
     resourceId: review.reviewId ?? String(review.id),
     ip: getRequestIp(req),
