@@ -164,6 +164,24 @@ export const WORKFLOWS = {
       .strict(),
     manual: true,
   }),
+  clientAutomationsNotify: defineWorkflow({
+    id: "client-automations-notify",
+    name: "Aviso de automatizaciones al cliente",
+    description: "Avisa al cliente por WhatsApp de las automatizaciones activadas o finalizadas y de las que tiene.",
+    category: "system",
+    resource: "client",
+    envPath: "N8N_PATH_CLIENT_AUTOMATIONS",
+    defaultPath: "zihkon/client/automations-changed",
+    data: z
+      .object({
+        activated: z.array(z.string().max(64)).max(50),
+        deactivated: z.array(z.string().max(64)).max(50),
+      })
+      .strict(),
+    manual: false,
+    // Espera a que n8n envíe el WhatsApp para confirmar el aviso.
+    timeoutMs: 30_000,
+  }),
   clientOnboarding: defineWorkflow({
     id: "client-onboarding",
     name: "Onboarding de cliente",

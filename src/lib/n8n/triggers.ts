@@ -259,3 +259,10 @@ export const triggerAuditGeneration = (
 
 export const triggerGbpListAccounts = (actor: Actor, req?: Request) =>
   triggerWorkflow(actor, WORKFLOWS.gbpListAccounts.id, {}, req);
+
+export const triggerClientAutomationsNotify = (
+  actor: Actor,
+  clientId: string,
+  data: z.input<typeof WORKFLOWS.clientAutomationsNotify.data>,
+  req?: Request,
+) => triggerWorkflow(actor, WORKFLOWS.clientAutomationsNotify.id, { resourceId: clientId, data }, req);

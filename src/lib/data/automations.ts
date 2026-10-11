@@ -31,6 +31,34 @@ export async function listClientAutomations(actor: Actor, clientId: string): Pro
   }));
 }
 
+/**
+ * Guarda de una vez qué automatizaciones tiene el cliente (solo administradores).
+ * Devuelve las claves que se han activado y las que se han desactivado respecto a lo que había.
+ */
+export async function saveClientAutomations(actor: Actor, clientId: string, desired: Record<string, boolean>) {
+  assertAdmin(actor);
+  const client = await getClient(actor, clientId);
+  const current = await listClientAutomations(actor, clientId);
+  const unknown = Object.keys(desired).filter((k) => !current.some((a) => a.automationKey === k));
+  if (unknown.length) throw new NotFoundError(`Automatización no encontrada: ${unknown.join(", ")}`);
+
+  const changed = current.filter((a) => a.automationKey in desired && desired[a.automationKey] !== a.enabled);
+  const activated = changed.filter((a) => desired[a.automationKey]).map((a) => a.automationKey);
+  const deactivated = changed.filter((a) => !desired[a.automationKey]).map((a) => a.automationKey);
+
+  await prisma.$transaction(
+    changed.map((a) =>
+      prisma.clientAutomation.upsert({
+        where: { clientId_automationKey: { clientId, automationKey: a.automationKey } },
+        create: { clientId, automationKey: a.automationKey, enabled: desired[a.automationKey] },
+        update: { enabled: desired[a.automationKey] },
+      }),
+    ),
+  );
+  const names = (keys: string[]) => keys.map((k) => current.find((a) => a.automationKey === k)!.name);
+  return { client, activated, deactivated, activatedNames: names(activated), deactivatedNames: names(deactivated) };
+}
+
 /** Habilita o deshabilita una automatización para un cliente (solo administradores). */
 export async function setClientAutomation(actor: Actor, clientId: string, automationKey: string, enabled: boolean) {
   assertAdmin(actor);
