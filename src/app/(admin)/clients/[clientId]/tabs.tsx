@@ -2,6 +2,7 @@ import { AlertTriangle, ClipboardCheck, ExternalLink, FileText, Globe, Images, M
 import Link from "next/link";
 import { RunWorkflowButton } from "@/components/automations/run-workflow-button";
 import { ClientAutomationsToggles } from "@/components/clients/client-automations";
+import { ClientBilling } from "@/components/clients/client-billing";
 import { ClientForm } from "@/components/clients/client-form";
 import { DeleteClientButton } from "@/components/clients/client-actions";
 import { IntakeCard } from "@/components/content/intake-card";
@@ -18,6 +19,7 @@ import { recentActivityForClient } from "@/lib/activity-log";
 import type { Actor } from "@/lib/auth/types";
 import { findAuditsForClient } from "@/lib/data/audits";
 import { listClientAutomations } from "@/lib/data/automations";
+import { getClientBillingOverview } from "@/lib/data/billing";
 import { getClientActivity, type GbpLink } from "@/lib/data/clients";
 import { listIntakes, listMessageErrors } from "@/lib/data/content";
 import { reviewSummary } from "@/lib/data/gbp";
@@ -196,6 +198,55 @@ export async function AuditsTab({ actor, clientName }: { actor: Actor; clientNam
             </div>
           </div>
         ))}
+      </CardContent>
+    </Card>
+  );
+}
+
+export async function BillingTab({ actor, clientId }: { actor: Actor; clientId: string }) {
+  const o = await getClientBillingOverview(actor, clientId);
+  const iso = (d: Date | null | undefined) => d?.toISOString() ?? null;
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base">Suscripción y cobros</CardTitle>
+        <CardDescription>
+          Una suscripción de Stripe por cliente. Al cobrarse se activan sus automatizaciones; al terminar el periodo pagado de una baja, se desactivan. Las
+          facturas las emite la gestoría.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <ClientBilling
+          clientId={clientId}
+          stripeConfigured={o.stripeConfigured}
+          plans={o.plans.map((p) => ({
+            planKey: p.planKey,
+            name: p.name,
+            kind: p.kind,
+            setupAmountCents: p.setupAmountCents,
+            monthlyAmountCents: p.monthlyAmountCents,
+            yearlyAmountCents: p.yearlyAmountCents,
+            synced: Boolean(p.stripeMonthlyPriceId && (p.setupAmountCents === 0 || p.stripeSetupPriceId)),
+          }))}
+          billing={{
+            status: o.billing?.status ?? "none",
+            billingInterval: o.billing?.billingInterval ?? null,
+            currentPeriodEnd: iso(o.billing?.currentPeriodEnd),
+            cancelAtPeriodEnd: o.billing?.cancelAtPeriodEnd ?? false,
+            billingName: o.billing?.billingName ?? null,
+            taxId: o.billing?.taxId ?? null,
+            plans: o.items.map((i) => ({ planKey: i.planKey, name: i.plan.name, status: i.status })),
+            checkouts: o.checkouts.map((c) => ({ id: c.checkoutSessionId, planKeys: c.planKeys, status: c.status, url: c.url, createdAt: iso(c.createdAt) })),
+            payments: o.payments.map((p) => ({
+              id: p.paymentId.toString(),
+              concept: p.concept,
+              totalCents: p.totalCents,
+              paymentMethod: p.paymentMethod,
+              status: p.status,
+              paidAt: iso(p.paidAt),
+            })),
+          }}
+        />
       </CardContent>
     </Card>
   );

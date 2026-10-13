@@ -1,0 +1,7 @@
+# SOLO DESARROLLO: emulador local de Stripe (npx emulate@0.12.1 start -s stripe --seed dev/stripe-emulator.yaml)
+# El catálogo se crea con scripts/stripe-sync-catalog.mjs. El webhook apunta al panel en local.
+stripe:
+  webhooks:
+    - url: http://localhost:3100/api/webhooks/stripe
+      events: ['*']
+      secret: whsec_emulated_local

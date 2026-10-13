@@ -47,6 +47,10 @@ model Client {
   processedMessages ProcessedMessage[]
   gbpProfiles       GbpClient[]
   automations       ClientAutomation[]
+  billing           ClientBilling?
+  billingItems      ClientBillingItem[]
+  billingCheckouts  BillingCheckout[]
+  billingPayments   BillingPayment[]
 
   @@map("clients")
 }
@@ -297,4 +301,115 @@ model ClientAutomation {
 
   @@id([clientId, automationKey])
   @@map("client_automations")
+}
+
+// -----------------------------------------------------------------------------
+// Cobros con Stripe (proposed-migrations/007). Importes en céntimos, sin IVA.
+// -----------------------------------------------------------------------------
+
+model BillingPlan {
+  planKey              String    @id @map("plan_key")
+  name                 String
+  kind                 String
+  automationKeys       String[]  @map("automation_keys")
+  setupAmountCents     Int       @map("setup_amount_cents")
+  monthlyAmountCents   Int       @map("monthly_amount_cents")
+  yearlyAmountCents    Int?      @map("yearly_amount_cents")
+  currency             String    @default("eur")
+  stripeProductId      String?   @map("stripe_product_id")
+  stripeSetupPriceId   String?   @map("stripe_setup_price_id")
+  stripeMonthlyPriceId String?   @map("stripe_monthly_price_id")
+  stripeYearlyPriceId  String?   @map("stripe_yearly_price_id")
+  sortOrder            Int       @default(0) @map("sort_order")
+  active               Boolean   @default(true)
+  createdAt            DateTime? @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt            DateTime? @updatedAt @map("updated_at") @db.Timestamptz
+
+  items ClientBillingItem[]
+
+  @@map("billing_plans")
+}
+
+model ClientBilling {
+  clientId             String    @id @map("client_id") @db.Uuid
+  stripeCustomerId     String?   @unique @map("stripe_customer_id")
+  stripeSubscriptionId String?   @unique @map("stripe_subscription_id")
+  status               String    @default("none")
+  billingInterval      String?   @map("billing_interval")
+  currentPeriodEnd     DateTime? @map("current_period_end") @db.Timestamptz
+  cancelAtPeriodEnd    Boolean   @default(false) @map("cancel_at_period_end")
+  billingName          String?   @map("billing_name")
+  billingEmail         String?   @map("billing_email")
+  taxId                String?   @map("tax_id")
+  billingAddress       Json?     @map("billing_address")
+  createdAt            DateTime? @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt            DateTime? @updatedAt @map("updated_at") @db.Timestamptz
+
+  client Client @relation(fields: [clientId], references: [clientId], onDelete: Cascade)
+
+  @@map("client_billing")
+}
+
+model ClientBillingItem {
+  clientId                 String    @map("client_id") @db.Uuid
+  planKey                  String    @map("plan_key")
+  stripeSubscriptionItemId String?   @map("stripe_subscription_item_id")
+  status                   String    @default("pending")
+  createdAt                DateTime? @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt                DateTime? @updatedAt @map("updated_at") @db.Timestamptz
+
+  client Client      @relation(fields: [clientId], references: [clientId], onDelete: Cascade)
+  plan   BillingPlan @relation(fields: [planKey], references: [planKey])
+
+  @@id([clientId, planKey])
+  @@map("client_billing_items")
+}
+
+model BillingCheckout {
+  checkoutSessionId    String    @id @map("checkout_session_id")
+  clientId             String    @map("client_id") @db.Uuid
+  planKeys             String[]  @map("plan_keys")
+  billingInterval      String    @map("billing_interval")
+  status               String    @default("open")
+  url                  String?
+  stripeSubscriptionId String?   @map("stripe_subscription_id")
+  createdBy            String?   @map("created_by")
+  createdAt            DateTime? @default(now()) @map("created_at") @db.Timestamptz
+  completedAt          DateTime? @map("completed_at") @db.Timestamptz
+
+  client Client @relation(fields: [clientId], references: [clientId], onDelete: Cascade)
+
+  @@map("billing_checkouts")
+}
+
+model BillingPayment {
+  paymentId      BigInt    @id @default(autoincrement()) @map("payment_id")
+  stripeObjectId String    @unique @map("stripe_object_id")
+  clientId       String?   @map("client_id") @db.Uuid
+  concept        String
+  subtotalCents  Int       @map("subtotal_cents")
+  taxCents       Int       @map("tax_cents")
+  totalCents     Int       @map("total_cents")
+  currency       String    @default("eur")
+  paymentMethod  String?   @map("payment_method")
+  status         String
+  billingName    String?   @map("billing_name")
+  taxId          String?   @map("tax_id")
+  billingAddress Json?     @map("billing_address")
+  paidAt         DateTime? @map("paid_at") @db.Timestamptz
+  createdAt      DateTime? @default(now()) @map("created_at") @db.Timestamptz
+
+  client Client? @relation(fields: [clientId], references: [clientId], onDelete: SetNull)
+
+  @@map("billing_payments")
+}
+
+model StripeEvent {
+  eventId     String    @id @map("event_id")
+  type        String
+  receivedAt  DateTime? @default(now()) @map("received_at") @db.Timestamptz
+  processedAt DateTime? @map("processed_at") @db.Timestamptz
+  error       String?
+
+  @@map("stripe_events")
 }

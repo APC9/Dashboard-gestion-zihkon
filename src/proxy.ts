@@ -30,7 +30,8 @@ export async function proxy(req: NextRequest) {
 
 export const config = {
   matcher: [
-    // Todo excepto login, auth de NextAuth, healthcheck y estáticos.
-    "/((?!login|api/auth|api/health|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)",
+    // Todo excepto login, auth de NextAuth, healthcheck, webhook de Stripe (va firmado),
+    // páginas de vuelta del pago y estáticos.
+    "/((?!login|api/auth|api/health|api/webhooks/stripe|pago/|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)",
   ],
 };

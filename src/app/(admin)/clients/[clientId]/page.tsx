@@ -15,6 +15,7 @@ import {
   ActivityTab,
   AuditsTab,
   AutomationsTab,
+  BillingTab,
   ContentTab,
   GbpTab,
   GeneralTab,
@@ -28,6 +29,7 @@ const TABS = [
   { value: "content", label: "Contenido" },
   { value: "audits", label: "Auditorías" },
   { value: "automations", label: "Automatizaciones" },
+  { value: "billing", label: "Cobros" },
   { value: "activity", label: "Actividad" },
 ] as const;
 type Tab = (typeof TABS)[number]["value"];
@@ -115,6 +117,7 @@ export default async function ClientDetailPage({ params, searchParams }: Props) 
       {tab === "content" && <ContentTab actor={actor} clientId={client.clientId} />}
       {tab === "audits" && <AuditsTab actor={actor} clientName={client.clientName} />}
       {tab === "automations" && <AutomationsTab actor={actor} client={client} websites={websites} />}
+      {tab === "billing" && <BillingTab actor={actor} clientId={client.clientId} />}
       {tab === "activity" && <ActivityTab actor={actor} clientId={client.clientId} />}
     </>
   );

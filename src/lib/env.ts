@@ -23,6 +23,14 @@ const serverEnvSchema = z.object({
   // Opcional: API REST de n8n para leer ejecuciones (Automatizaciones).
   N8N_API_URL: z.string().url().optional(),
   N8N_API_KEY: z.string().optional(),
+
+  // Stripe (cobros). En desarrollo, claves de modo test (sk_test_…) o el emulador local.
+  STRIPE_SECRET_KEY: z.string().optional(),
+  STRIPE_WEBHOOK_SECRET: z.string().optional(),
+  // Solo desarrollo: URL del emulador (p. ej. http://localhost:4000). Vacío = API real de Stripe.
+  STRIPE_API_BASE: z.string().url().optional(),
+  // Tipo de IVA (21 %, exclusivo) creado en Stripe: txr_…
+  STRIPE_TAX_RATE_ID: z.string().optional(),
 });
 
 export type ServerEnv = z.infer<typeof serverEnvSchema>;
@@ -58,5 +66,6 @@ export function envStatus() {
     n8nWebhooks: has("N8N_WEBHOOK_BASE_URL") && has("N8N_WEBHOOK_SECRET"),
     n8nApi: has("N8N_API_URL") && has("N8N_API_KEY"),
     appUrl: has("NEXT_PUBLIC_APP_URL"),
+    stripe: has("STRIPE_SECRET_KEY") && has("STRIPE_WEBHOOK_SECRET"),
   };
 }

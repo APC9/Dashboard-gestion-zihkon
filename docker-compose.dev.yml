@@ -13,3 +13,6 @@ services:
     volumes:
       - ./dev/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
       - ./dev/seed.sql:/docker-entrypoint-initdb.d/02-seed.sql:ro
+      - ./prisma/proposed-migrations/005_publicaciones_gbp.sql:/docker-entrypoint-initdb.d/03-publicaciones-gbp.sql:ro
+      - ./prisma/proposed-migrations/006_usage_instructions.sql:/docker-entrypoint-initdb.d/04-usage-instructions.sql:ro
+      - ./prisma/proposed-migrations/007_stripe_billing.sql:/docker-entrypoint-initdb.d/05-stripe-billing.sql:ro
