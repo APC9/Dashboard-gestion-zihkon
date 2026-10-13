@@ -1,9 +1,22 @@
 import "server-only";
-import { NotFoundError } from "@/lib/api/errors";
+import { AppError, NotFoundError } from "@/lib/api/errors";
 import { assertAdmin } from "@/lib/auth/permissions";
 import type { Actor } from "@/lib/auth/types";
 import { prisma } from "@/lib/db";
 import { getClient } from "./clients";
+
+/** Automatizaciones que no pueden estar activas a la vez (el pack de Google va incluido en el multicanal). */
+export const EXCLUSIVE_AUTOMATIONS = ["publicaciones", "publicaciones_gbp"] as const;
+
+function assertNotBothPublications(enabled: (key: string) => boolean) {
+  if (EXCLUSIVE_AUTOMATIONS.every(enabled)) {
+    throw new AppError(
+      "«Publicaciones multicanal» y «Publicaciones en Google (GBP)» no pueden estar activas a la vez: activa solo una.",
+      400,
+      "AUTOMATIONS_EXCLUSIVE",
+    );
+  }
+}
 
 /** Automatización del catálogo con su estado para un cliente. */
 export interface ClientAutomationRow {
@@ -41,6 +54,7 @@ export async function saveClientAutomations(actor: Actor, clientId: string, desi
   const current = await listClientAutomations(actor, clientId);
   const unknown = Object.keys(desired).filter((k) => !current.some((a) => a.automationKey === k));
   if (unknown.length) throw new NotFoundError(`Automatización no encontrada: ${unknown.join(", ")}`);
+  assertNotBothPublications((k) => desired[k] ?? current.find((a) => a.automationKey === k)?.enabled === true);
 
   const changed = current.filter((a) => a.automationKey in desired && desired[a.automationKey] !== a.enabled);
   const activated = changed.filter((a) => desired[a.automationKey]).map((a) => a.automationKey);
@@ -65,6 +79,10 @@ export async function setClientAutomation(actor: Actor, clientId: string, automa
   const client = await getClient(actor, clientId);
   const automation = await prisma.automationCatalog.findUnique({ where: { automationKey } });
   if (!automation || !automation.active) throw new NotFoundError("Automatización no encontrada");
+  if (enabled && EXCLUSIVE_AUTOMATIONS.some((k) => k === automationKey)) {
+    const current = await listClientAutomations(actor, clientId);
+    assertNotBothPublications((k) => (k === automationKey ? true : current.find((a) => a.automationKey === k)?.enabled === true));
+  }
   await prisma.clientAutomation.upsert({
     where: { clientId_automationKey: { clientId, automationKey } },
     create: { clientId, automationKey, enabled },

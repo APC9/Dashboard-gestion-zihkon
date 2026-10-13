@@ -15,6 +15,9 @@ export interface ClientAutomationItem {
   enabled: boolean;
 }
 
+/** Solo puede estar activa una de estas dos: al activar una se apaga la otra. */
+const EXCLUSIVE_PAIR = ["publicaciones", "publicaciones_gbp"];
+
 interface SaveResponse {
   activated: string[];
   deactivated: string[];
@@ -76,7 +79,15 @@ export function ClientAutomationsToggles({ clientId, items }: { clientId: string
                 id={id}
                 checked={state[item.automationKey] === true}
                 disabled={saving}
-                onCheckedChange={(checked) => setState((s) => ({ ...s, [item.automationKey]: checked }))}
+                onCheckedChange={(checked) =>
+                  setState((s) => {
+                    const next = { ...s, [item.automationKey]: checked };
+                    if (checked && EXCLUSIVE_PAIR.includes(item.automationKey)) {
+                      for (const other of EXCLUSIVE_PAIR) if (other !== item.automationKey && other in next) next[other] = false;
+                    }
+                    return next;
+                  })
+                }
               />
             </li>
           );
