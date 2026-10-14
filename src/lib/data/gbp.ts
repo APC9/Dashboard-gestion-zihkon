@@ -247,3 +247,59 @@ export async function listGbpErrors(actor: Actor, opts: { q?: string; gbpClientI
     take: opts.take ?? 200,
   });
 }
+
+// ---------------------------------------------------------------------------
+// Puesta al día (reseñas antiguas sin responder)
+// ---------------------------------------------------------------------------
+
+export type BacklogStatus = "PENDING" | "IN_PROGRESS" | "LIVE";
+
+/** Estado de la puesta al día de un perfil y cuántas reseñas antiguas quedan / se han respondido. */
+export async function getBacklogInfo(actor: Actor, id: string) {
+  const profile = await getGbpProfile(actor, id);
+  const [counts] = await prisma.$queryRaw<{ queued: bigint; waiting_owner: bigint; published: bigint }[]>`
+    SELECT COUNT(*) FILTER (WHERE status IN ('NEW', 'DRAFT')) AS queued,
+           COUNT(*) FILTER (WHERE status = 'PENDING_APPROVAL') AS waiting_owner,
+           COUNT(*) FILTER (WHERE status = 'PUBLISHED') AS published
+    FROM public.gbp_review_activity WHERE client_id = ${id}::uuid AND source = 'backlog'`;
+  return {
+    status: profile.backlogStatus as BacklogStatus,
+    dailyReplyLimit: profile.dailyReplyLimit,
+    importedAt: profile.backlogImportedAt?.toISOString() ?? null,
+    finishedAt: profile.backlogFinishedAt?.toISOString() ?? null,
+    queued: Number(counts?.queued ?? 0),
+    waitingOwner: Number(counts?.waiting_owner ?? 0),
+    published: Number(counts?.published ?? 0),
+  };
+}
+
+/**
+ * Iniciar (→ PENDING) o detener (→ LIVE) la puesta al día.
+ * - Iniciar: solo si está al día. Se borran las reseñas antiguas que se cancelaron al detenerla para que n8n
+ *   las vuelva a descargar de Google (si mientras tanto se respondieron allí, ya no se tocan).
+ * - Detener: las reseñas antiguas aún sin tocar (NEW/DRAFT) pasan a CANCELLED; así n8n no sigue con ellas ni envía
+ *   más negativas al dueño. Las que ya esperan su decisión (PENDING_APPROVAL) se mantienen.
+ */
+export async function setBacklogAction(actor: Actor, id: string, action: "start" | "stop") {
+  if (!isAdmin(actor)) throw new ForbiddenError();
+  const profile = await getGbpProfile(actor, id);
+  if (action === "start") {
+    if (profile.backlogStatus !== "LIVE") throw new ConflictError("La puesta al día ya está pendiente o en marcha.");
+    await prisma.$transaction([
+      prisma.$executeRaw`
+        DELETE FROM public.gbp_review_activity r
+        WHERE r.client_id = ${id}::uuid AND r.source = 'backlog' AND r.status = 'CANCELLED'
+          AND NOT EXISTS (SELECT 1 FROM public.gbp_automation_errors e WHERE e.review_db_id = r.id)`,
+      prisma.gbpClient.update({ where: { id }, data: { backlogStatus: "PENDING", backlogFinishedAt: null } }),
+    ]);
+  } else {
+    if (profile.backlogStatus === "LIVE") throw new ConflictError("No hay ninguna puesta al día pendiente ni en marcha.");
+    await prisma.$transaction([
+      prisma.$executeRaw`
+        UPDATE public.gbp_review_activity SET status = 'CANCELLED', error_details = 'Puesta al día detenida desde el panel'
+        WHERE client_id = ${id}::uuid AND source = 'backlog' AND status IN ('NEW', 'DRAFT')`,
+      prisma.gbpClient.update({ where: { id }, data: { backlogStatus: "LIVE", backlogFinishedAt: new Date() } }),
+    ]);
+  }
+  return { profile, info: await getBacklogInfo(actor, id) };
+}

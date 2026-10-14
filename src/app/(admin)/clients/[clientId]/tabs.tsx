@@ -6,6 +6,7 @@ import { ClientForm } from "@/components/clients/client-form";
 import { DeleteClientButton } from "@/components/clients/client-actions";
 import { IntakeCard } from "@/components/content/intake-card";
 import { DeleteGbpProfileButton } from "@/components/gbp/gbp-profile-actions";
+import { GbpBacklogPanel } from "@/components/gbp/gbp-backlog-panel";
 import { GbpProfileForm } from "@/components/gbp/gbp-profile-form";
 import { ReviewSummary } from "@/components/gbp/review-summary";
 import { EmptyState } from "@/components/shared/empty-state";
@@ -20,7 +21,7 @@ import { findAuditsForClient } from "@/lib/data/audits";
 import { listClientAutomations } from "@/lib/data/automations";
 import { getClientActivity, type GbpLink } from "@/lib/data/clients";
 import { listIntakes, listMessageErrors } from "@/lib/data/content";
-import { reviewSummary } from "@/lib/data/gbp";
+import { getBacklogInfo, reviewSummary } from "@/lib/data/gbp";
 import { prisma } from "@/lib/db";
 import { formatDate, formatDateTime, formatRelative } from "@/lib/format";
 import { WORKFLOWS } from "@/lib/n8n/workflows";
@@ -74,6 +75,7 @@ export async function GbpTab({ actor, client, links }: { actor: Actor; client: C
     prisma.gbpClient.findMany({ where: { clientId: client.clientId }, orderBy: { createdAt: "asc" } }),
     reviewSummary(actor, ids),
   ]);
+  const backlogs = await Promise.all(profiles.map((p) => getBacklogInfo(actor, p.id)));
 
   if (profiles.length === 0) {
     return (
@@ -95,7 +97,7 @@ export async function GbpTab({ actor, client, links }: { actor: Actor; client: C
 
   return (
     <div className="flex flex-col gap-4">
-      {profiles.map((p) => (
+      {profiles.map((p, i) => (
         <Card key={p.id}>
           <CardHeader>
             <CardTitle className="flex flex-wrap items-center gap-2 text-base">
@@ -111,7 +113,8 @@ export async function GbpTab({ actor, client, links }: { actor: Actor; client: C
               <DeleteGbpProfileButton id={p.id} businessName={client.clientName ?? "este perfil"} />
             </CardAction>
           </CardHeader>
-          <CardContent>
+          <CardContent className="flex flex-col gap-4">
+            <GbpBacklogPanel profileId={p.id} info={backlogs[i]} canEdit={actor.role === "ADMIN"} />
             <GbpProfileForm initial={p} />
           </CardContent>
         </Card>
