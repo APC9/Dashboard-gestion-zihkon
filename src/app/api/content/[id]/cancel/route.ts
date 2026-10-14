@@ -6,7 +6,7 @@ import { uuidParam } from "@/lib/validation/common";
 
 type Ctx = { params: Promise<{ id: string }> };
 
-/** Cancelar = marcar el estado como CANCELLED. No se borra nada. */
+/** Cancelar = el contenido pasa a "failed" y su sesión de WhatsApp a CANCELLED (como CANCELAR en n8n). No se borra nada. */
 export const POST = route(async (req, ctx: Ctx) => {
   const actor = await requireActor();
   const { id } = parseParams(await ctx.params, uuidParam);
