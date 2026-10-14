@@ -1,5 +1,5 @@
 import "server-only";
-import { NotFoundError } from "@/lib/api/errors";
+import { ConflictError, NotFoundError } from "@/lib/api/errors";
 import { assertClientAccess, clientScope } from "@/lib/auth/permissions";
 import type { Actor } from "@/lib/auth/types";
 import { prisma } from "@/lib/db";
@@ -75,9 +75,29 @@ export async function updateIntakeDescription(actor: Actor, intakeId: string, de
   return prisma.contentIntake.update({ where: { intakeId }, data: { description: description || null } });
 }
 
+/** Estados de content_intakes que aún se pueden cancelar (CHECK de la BD: awaiting_description, ready, processing, processed, failed). */
+const CANCELLABLE_INTAKE_STATUSES = ["awaiting_description", "ready"];
+/** Sesiones de WhatsApp todavía abiertas (CHECK de content_sessions). */
+const OPEN_SESSION_STATUSES = ["WAITING_MEDIA", "WAITING_DESCRIPTION", "WAITING_CONFIRMATION", "PROCESSING"];
+
+/**
+ * Cancelar = lo mismo que hace n8n con CANCELAR por WhatsApp: el contenido pasa a "failed" y caduca,
+ * y su sesión abierta pasa a CANCELLED. No se borra nada.
+ */
 export async function cancelIntake(actor: Actor, intakeId: string) {
-  await getIntake(actor, intakeId);
-  return prisma.contentIntake.update({ where: { intakeId }, data: { status: "CANCELLED" } });
+  const intake = await getIntake(actor, intakeId);
+  if (!CANCELLABLE_INTAKE_STATUSES.includes(String(intake.status ?? "").toLowerCase())) {
+    throw new ConflictError("Este contenido ya está procesado o cancelado: no se puede cancelar.");
+  }
+  const now = new Date();
+  const [updated] = await prisma.$transaction([
+    prisma.contentIntake.update({ where: { intakeId }, data: { status: "failed", expiresAt: now } }),
+    prisma.contentSession.updateMany({
+      where: { contentIntakeId: intakeId, status: { in: OPEN_SESSION_STATUSES } },
+      data: { status: "CANCELLED", completedAt: now },
+    }),
+  ]);
+  return updated;
 }
 
 export async function listActiveSessions(actor: Actor, take = 50) {
