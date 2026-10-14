@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { RunWorkflowButton } from "@/components/automations/run-workflow-button";
+import { GbpBacklogPanel } from "@/components/gbp/gbp-backlog-panel";
 import { DeleteGbpProfileButton } from "@/components/gbp/gbp-profile-actions";
 import { GbpProfileForm } from "@/components/gbp/gbp-profile-form";
 import { ReviewSummary } from "@/components/gbp/review-summary";
@@ -11,7 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { NotFoundError } from "@/lib/api/errors";
 import { requireAdminPage } from "@/lib/auth/session";
-import { getGbpProfile, reviewSummary } from "@/lib/data/gbp";
+import { getBacklogInfo, getGbpProfile, reviewSummary } from "@/lib/data/gbp";
 import { WORKFLOWS } from "@/lib/n8n/workflows";
 import { z } from "zod";
 
@@ -26,7 +27,7 @@ export default async function GbpProfilePage({ params }: { params: Promise<{ id:
     if (e instanceof NotFoundError) notFound();
     throw e;
   });
-  const summary = await reviewSummary(actor, [id]);
+  const [summary, backlog] = await Promise.all([reviewSummary(actor, [id]), getBacklogInfo(actor, id)]);
   const name = profile.client.clientName ?? "Perfil sin nombre";
 
   return (
@@ -56,6 +57,7 @@ export default async function GbpProfilePage({ params }: { params: Promise<{ id:
           </>
         }
       />
+      <GbpBacklogPanel profileId={profile.id} info={backlog} canEdit />
       <div className="grid gap-4 xl:grid-cols-[1fr_320px]">
         <Card>
           <CardHeader>

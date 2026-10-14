@@ -188,6 +188,12 @@ model GbpClient {
   telegramChatId       String?   @map("telegram_chat_id")
   delayMinutes         Int?      @map("delay_minutes")
   contactEmail         String?   @map("contact_email")
+  // Puesta al día de reseñas antiguas: PENDING (empieza en la próxima hora) → IN_PROGRESS → LIVE (al día).
+  backlogStatus        String    @default("PENDING") @map("backlog_status")
+  dailyReplyLimit      Int       @default(50) @map("daily_reply_limit")
+  backlogImportedAt    DateTime? @map("backlog_imported_at") @db.Timestamptz
+  backlogFinishedAt    DateTime? @map("backlog_finished_at") @db.Timestamptz
+  lastSyncedAt         DateTime? @map("last_synced_at") @db.Timestamptz
   createdAt            DateTime? @default(now()) @map("created_at")
   updatedAt            DateTime? @updatedAt @map("updated_at")
 
