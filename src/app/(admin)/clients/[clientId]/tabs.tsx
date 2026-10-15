@@ -2,6 +2,7 @@ import { AlertTriangle, ClipboardCheck, ExternalLink, FileText, Globe, Images, M
 import Link from "next/link";
 import { RunWorkflowButton } from "@/components/automations/run-workflow-button";
 import { ClientAutomationsToggles } from "@/components/clients/client-automations";
+import { ClientTrialPanel } from "@/components/clients/client-trial";
 import { ClientForm } from "@/components/clients/client-form";
 import { DeleteClientButton } from "@/components/clients/client-actions";
 import { IntakeCard } from "@/components/content/intake-card";
@@ -18,7 +19,8 @@ import type { Client, ClientWebsite } from "@/generated/prisma/client";
 import { recentActivityForClient } from "@/lib/activity-log";
 import type { Actor } from "@/lib/auth/types";
 import { findAuditsForClient } from "@/lib/data/audits";
-import { listClientAutomations } from "@/lib/data/automations";
+import { EXCLUSIVE_AUTOMATIONS, getClientTrial, listClientAutomations } from "@/lib/data/automations";
+import { isAdmin } from "@/lib/auth/permissions";
 import { getClientActivity, type GbpLink } from "@/lib/data/clients";
 import { listIntakes, listMessageErrors } from "@/lib/data/content";
 import { getBacklogInfo, reviewSummary } from "@/lib/data/gbp";
@@ -205,7 +207,12 @@ export async function AuditsTab({ actor, clientName }: { actor: Actor; clientNam
 }
 
 export async function AutomationsTab({ actor, client, websites }: { actor: Actor; client: Client; websites: ClientWebsite[] }) {
-  const [allErrors, contracted] = await Promise.all([listMessageErrors(actor, 200), listClientAutomations(actor, client.clientId)]);
+  const [allErrors, contracted, trial] = await Promise.all([
+    listMessageErrors(actor, 200),
+    listClientAutomations(actor, client.clientId),
+    getClientTrial(actor, client.clientId),
+  ]);
+  const hasPublications = contracted.some((a) => a.enabled && EXCLUSIVE_AUTOMATIONS.some((k) => k === a.automationKey));
   const errors = allErrors.filter((e) => e.clientId === client.clientId).slice(0, 20);
   const panelActions = recentActivityForClient(client.clientId, 20);
   return (
@@ -220,6 +227,15 @@ export async function AutomationsTab({ actor, client, websites }: { actor: Actor
         </CardHeader>
         <CardContent>
           <ClientAutomationsToggles clientId={client.clientId} items={contracted} />
+        </CardContent>
+      </Card>
+      <Card className="xl:col-span-2">
+        <CardHeader>
+          <CardTitle className="text-base">Prueba gratuita de publicaciones</CardTitle>
+          <CardDescription>7 días con un máximo de 4 publicaciones. Al terminar, la automatización se desactiva sola.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <ClientTrialPanel clientId={client.clientId} trial={trial} canManage={isAdmin(actor)} hasPublications={hasPublications && !trial?.active} />
         </CardContent>
       </Card>
       <Card>
