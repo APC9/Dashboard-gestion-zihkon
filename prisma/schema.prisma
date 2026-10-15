@@ -297,6 +297,13 @@ model ClientAutomation {
   enabled       Boolean   @default(true)
   createdAt     DateTime? @default(now()) @map("created_at") @db.Timestamptz
   updatedAt     DateTime? @updatedAt @map("updated_at") @db.Timestamptz
+  /// Prueba gratuita (una por cliente). En prueba = trialStartedAt sin trialFinishedAt.
+  trialStartedAt      DateTime? @map("trial_started_at") @db.Timestamptz
+  trialEndsAt         DateTime? @map("trial_ends_at") @db.Timestamptz
+  trialPostsLimit     Int       @default(4) @map("trial_posts_limit")
+  trialPostsUsed      Int       @default(0) @map("trial_posts_used")
+  trialReminderSentAt DateTime? @map("trial_reminder_sent_at") @db.Timestamptz
+  trialFinishedAt     DateTime? @map("trial_finished_at") @db.Timestamptz
 
   client     Client            @relation(fields: [clientId], references: [clientId], onDelete: Cascade)
   automation AutomationCatalog @relation(fields: [automationKey], references: [automationKey])

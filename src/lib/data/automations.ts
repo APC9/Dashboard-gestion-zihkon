@@ -25,6 +25,8 @@ export interface ClientAutomationRow {
   description: string | null;
   enabled: boolean;
   updatedAt: Date | null;
+  /** Está en prueba gratuita (aún no ha terminado). */
+  inTrial: boolean;
 }
 
 /** Catálogo de automatizaciones (activas) con las que tiene habilitadas el cliente. */
@@ -41,6 +43,7 @@ export async function listClientAutomations(actor: Actor, clientId: string): Pro
     description: a.description,
     enabled: a.clients[0]?.enabled === true,
     updatedAt: a.clients[0]?.updatedAt ?? null,
+    inTrial: a.clients[0]?.trialStartedAt != null && a.clients[0]?.trialFinishedAt == null,
   }));
 }
 
@@ -65,7 +68,8 @@ export async function saveClientAutomations(actor: Actor, clientId: string, desi
       prisma.clientAutomation.upsert({
         where: { clientId_automationKey: { clientId, automationKey: a.automationKey } },
         create: { clientId, automationKey: a.automationKey, enabled: desired[a.automationKey] },
-        update: { enabled: desired[a.automationKey] },
+        // Si se apaga a mano durante la prueba, la prueba termina (no se puede repetir).
+        update: { enabled: desired[a.automationKey], ...(a.inTrial && !desired[a.automationKey] ? { trialFinishedAt: new Date() } : {}) },
       }),
     ),
   );
@@ -89,4 +93,105 @@ export async function setClientAutomation(actor: Actor, clientId: string, automa
     update: { enabled },
   });
   return { client, automation };
+}
+
+// ---------------------------------------------------------------------------
+// Prueba gratuita de publicaciones (7 días, máximo 4 publicaciones, una por cliente).
+// El recordatorio y el fin de la prueba los gestiona n8n («Zihkon · Pruebas gratuitas»).
+// ---------------------------------------------------------------------------
+
+export const TRIAL_DAYS = 7;
+export const TRIAL_POSTS_LIMIT = 4;
+export type TrialAutomationKey = (typeof EXCLUSIVE_AUTOMATIONS)[number];
+
+export interface ClientTrial {
+  automationKey: string;
+  name: string;
+  startedAt: Date;
+  endsAt: Date;
+  postsLimit: number;
+  postsUsed: number;
+  reminderSentAt: Date | null;
+  finishedAt: Date | null;
+  /** En curso: no ha terminado (aunque ya haya vencido, hasta que n8n la cierre). */
+  active: boolean;
+  /** Días que faltan (redondeado hacia arriba); 0 si ya ha vencido. */
+  daysLeft: number;
+}
+
+/** La prueba del cliente (en curso o ya terminada), o null si nunca ha tenido. */
+export async function getClientTrial(actor: Actor, clientId: string): Promise<ClientTrial | null> {
+  await getClient(actor, clientId);
+  const row = await prisma.clientAutomation.findFirst({
+    where: { clientId, trialStartedAt: { not: null } },
+    include: { automation: { select: { name: true } } },
+  });
+  if (!row?.trialStartedAt || !row.trialEndsAt) return null;
+  const msLeft = row.trialEndsAt.getTime() - Date.now();
+  return {
+    automationKey: row.automationKey,
+    name: row.automation.name,
+    startedAt: row.trialStartedAt,
+    endsAt: row.trialEndsAt,
+    postsLimit: row.trialPostsLimit,
+    postsUsed: row.trialPostsUsed,
+    reminderSentAt: row.trialReminderSentAt,
+    finishedAt: row.trialFinishedAt,
+    active: row.trialFinishedAt == null,
+    daysLeft: Math.max(0, Math.ceil(msLeft / 86_400_000)),
+  };
+}
+
+/** Activa la prueba gratuita de 7 días (solo administradores, una vez por cliente). */
+export async function startClientTrial(actor: Actor, clientId: string, automationKey: TrialAutomationKey) {
+  assertAdmin(actor);
+  const client = await getClient(actor, clientId);
+  const automation = await prisma.automationCatalog.findUnique({ where: { automationKey } });
+  if (!automation || !automation.active) throw new NotFoundError("Automatización no encontrada");
+  if (await prisma.clientAutomation.findFirst({ where: { clientId, trialStartedAt: { not: null } } })) {
+    throw new AppError("Este cliente ya ha tenido su prueba gratuita: solo se puede activar una vez.", 409, "TRIAL_ALREADY_USED");
+  }
+  const enabledPublications = await prisma.clientAutomation.count({
+    where: { clientId, enabled: true, automationKey: { in: [...EXCLUSIVE_AUTOMATIONS] } },
+  });
+  if (enabledPublications) {
+    throw new AppError("El cliente ya tiene activas las publicaciones: no necesita prueba.", 400, "TRIAL_NOT_NEEDED");
+  }
+
+  const startedAt = new Date();
+  const trial = {
+    enabled: true,
+    trialStartedAt: startedAt,
+    trialEndsAt: new Date(startedAt.getTime() + TRIAL_DAYS * 86_400_000),
+    trialPostsLimit: TRIAL_POSTS_LIMIT,
+    trialPostsUsed: 0,
+    trialReminderSentAt: null,
+    trialFinishedAt: null,
+  };
+  try {
+    await prisma.clientAutomation.upsert({
+      where: { clientId_automationKey: { clientId, automationKey } },
+      create: { clientId, automationKey, ...trial },
+      update: trial,
+    });
+  } catch (error) {
+    // Índice único «una prueba por cliente»: dos clics a la vez.
+    if ((error as { code?: string }).code === "P2002") {
+      throw new AppError("Este cliente ya ha tenido su prueba gratuita: solo se puede activar una vez.", 409, "TRIAL_ALREADY_USED");
+    }
+    throw error;
+  }
+  return { client, automation };
+}
+
+/** El cliente contrata durante la prueba: la automatización sigue activa y deja de contar como prueba. */
+export async function convertClientTrial(actor: Actor, clientId: string) {
+  assertAdmin(actor);
+  const client = await getClient(actor, clientId);
+  const { count } = await prisma.clientAutomation.updateMany({
+    where: { clientId, trialStartedAt: { not: null }, trialFinishedAt: null },
+    data: { trialFinishedAt: new Date() },
+  });
+  if (!count) throw new AppError("El cliente no tiene ninguna prueba en curso.", 400, "TRIAL_NOT_ACTIVE");
+  return { client };
 }
