@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { api, toastError } from "@/lib/api-client";
 import { formatDate, formatDateTime } from "@/lib/format";
 
@@ -20,17 +19,15 @@ export interface ClientTrialInfo {
   daysLeft: number;
 }
 
-const TRIAL_OPTIONS = [
-  { value: "publicaciones_gbp", label: "Publicaciones en Google (GBP)" },
-  { value: "publicaciones", label: "Publicaciones multicanal" },
-];
+/** La prueba publica solo en Facebook (n8n la trata como plan «prueba_facebook»). */
+const TRIAL_LABEL = "Publicaciones en Facebook";
 
 interface TrialResponse {
   notify: { sent: boolean; error?: string };
 }
 
 /**
- * Prueba gratuita de 7 días de las publicaciones (máximo 4, una sola vez por cliente).
+ * Prueba gratuita de 7 días de publicaciones en Facebook (máximo 4, una sola vez por cliente).
  * El recordatorio del día antes y el fin de la prueba los envía n8n.
  */
 export function ClientTrialPanel({
@@ -45,7 +42,6 @@ export function ClientTrialPanel({
   hasPublications: boolean;
 }) {
   const router = useRouter();
-  const [automationKey, setAutomationKey] = useState("publicaciones_gbp");
   const [busy, setBusy] = useState(false);
 
   async function send(body: Record<string, string>, ok: string) {
@@ -68,7 +64,7 @@ export function ClientTrialPanel({
     return (
       <div className="flex flex-col gap-2 text-sm">
         <p className="font-medium">
-          {trial.name}
+          {TRIAL_LABEL}
           <span className={`ml-2 text-xs font-normal ${trial.active ? "text-amber-600" : "text-muted-foreground"}`}>
             {trial.active ? (trial.daysLeft > 0 ? `en prueba · ${trial.daysLeft} día${trial.daysLeft === 1 ? "" : "s"} restante${trial.daysLeft === 1 ? "" : "s"}` : "vencida, se cerrará en la próxima revisión") : `terminada el ${formatDate(trial.finishedAt)}`}
           </span>
@@ -96,24 +92,12 @@ export function ClientTrialPanel({
 
   return (
     <div className="flex flex-wrap items-center gap-2">
-      <Select value={automationKey} onValueChange={setAutomationKey}>
-        <SelectTrigger className="w-64" aria-label="Automatización de la prueba">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          {TRIAL_OPTIONS.map((o) => (
-            <SelectItem key={o.value} value={o.value}>
-              {o.label}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-      <Button disabled={busy} onClick={() => send({ action: "start", automationKey }, "Prueba activada y cliente avisado por WhatsApp")}>
+      <Button disabled={busy} onClick={() => send({ action: "start" }, "Prueba activada y cliente avisado por WhatsApp")}>
         {busy ? <Loader2 className="size-4 animate-spin" /> : <Gift className="size-4" />}
         Activar prueba 7 días
       </Button>
       <p className="w-full text-xs text-muted-foreground">
-        7 días y máximo 4 publicaciones. El cliente recibe el aviso de activación, un recordatorio el día antes de que acabe y un mensaje al terminar. Solo una vez por cliente.
+        Publica solo en Facebook, 7 días y máximo 4 publicaciones. El cliente recibe el aviso de activación, un recordatorio el día antes de que acabe y un mensaje al terminar. Solo una vez por cliente.
       </p>
     </div>
   );
