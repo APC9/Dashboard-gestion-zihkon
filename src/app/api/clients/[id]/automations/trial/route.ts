@@ -9,6 +9,7 @@ import { uuidParam } from "@/lib/validation/common";
 type Ctx = { params: Promise<{ id: string }> };
 
 const bodySchema = z.discriminatedUnion("action", [
+  // La prueba se guarda en la fila de «publicaciones_gbp», pero n8n publica solo en Facebook mientras dure.
   z.object({ action: z.literal("start"), automationKey: z.enum(EXCLUSIVE_AUTOMATIONS).default("publicaciones_gbp") }).strict(),
   z.object({ action: z.literal("convert") }).strict(),
 ]);

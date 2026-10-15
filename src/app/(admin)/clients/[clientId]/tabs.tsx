@@ -231,8 +231,8 @@ export async function AutomationsTab({ actor, client, websites }: { actor: Actor
       </Card>
       <Card className="xl:col-span-2">
         <CardHeader>
-          <CardTitle className="text-base">Prueba gratuita de publicaciones</CardTitle>
-          <CardDescription>7 días con un máximo de 4 publicaciones. Al terminar, la automatización se desactiva sola.</CardDescription>
+          <CardTitle className="text-base">Prueba gratuita de publicaciones en Facebook</CardTitle>
+          <CardDescription>Durante la prueba las publicaciones salen solo en Facebook: 7 días con un máximo de 4. Al terminar, la automatización se desactiva sola.</CardDescription>
         </CardHeader>
         <CardContent>
           <ClientTrialPanel clientId={client.clientId} trial={trial} canManage={isAdmin(actor)} hasPublications={hasPublications && !trial?.active} />
