@@ -168,18 +168,27 @@ export async function startClientTrial(actor: Actor, clientId: string, automatio
     trialReminderSentAt: null,
     trialFinishedAt: null,
   };
+  // Escritura condicional (no upsert): con dos clics a la vez solo una petición activa la prueba
+  // y la otra recibe 409, así el cliente no recibe el aviso de WhatsApp dos veces.
+  const alreadyUsed = () =>
+    new AppError("Este cliente ya ha tenido su prueba gratuita: solo se puede activar una vez.", 409, "TRIAL_ALREADY_USED");
+  const isUniqueViolation = (error: unknown) => (error as { code?: string }).code === "P2002";
   try {
-    await prisma.clientAutomation.upsert({
-      where: { clientId_automationKey: { clientId, automationKey } },
-      create: { clientId, automationKey, ...trial },
-      update: trial,
-    });
+    await prisma.clientAutomation.create({ data: { clientId, automationKey, ...trial } });
   } catch (error) {
-    // Índice único «una prueba por cliente»: dos clics a la vez.
-    if ((error as { code?: string }).code === "P2002") {
-      throw new AppError("Este cliente ya ha tenido su prueba gratuita: solo se puede activar una vez.", 409, "TRIAL_ALREADY_USED");
+    if (!isUniqueViolation(error)) throw error;
+    // Ya existe la fila (automatización apagada sin prueba) o el índice «una prueba por cliente» lo impide.
+    let updated: number;
+    try {
+      ({ count: updated } = await prisma.clientAutomation.updateMany({
+        where: { clientId, automationKey, trialStartedAt: null },
+        data: trial,
+      }));
+    } catch (inner) {
+      if (isUniqueViolation(inner)) throw alreadyUsed();
+      throw inner;
     }
-    throw error;
+    if (!updated) throw alreadyUsed();
   }
   return { client, automation };
 }
