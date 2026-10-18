@@ -4,7 +4,7 @@ import type { NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import { z } from "zod";
 import { env } from "@/lib/env";
-import { clearAttempts, isRateLimited, registerFailedAttempt } from "./rate-limit";
+import { clearAttempts, clientIpFromHeaders, isRateLimited, registerFailedAttempt } from "./rate-limit";
 import type { Role } from "./types";
 
 const credentialsSchema = z.object({
@@ -50,8 +50,7 @@ export const authOptions: NextAuthOptions = {
         const parsed = credentialsSchema.safeParse(raw);
         if (!parsed.success) return null;
 
-        const forwarded = req?.headers?.["x-forwarded-for"];
-        const ip = (Array.isArray(forwarded) ? forwarded[0] : forwarded)?.split(",")[0]?.trim() ?? "unknown";
+        const ip = clientIpFromHeaders(req?.headers ?? {});
         const key = `${ip}:${parsed.data.email}`;
         if (isRateLimited(key)) {
           throw new Error("Demasiados intentos. Espera unos minutos.");

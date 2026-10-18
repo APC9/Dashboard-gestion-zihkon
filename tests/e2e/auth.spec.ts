@@ -70,11 +70,10 @@ test.describe("fuerza bruta en el login", () => {
     expect(blocked).toContain("Demasiados intentos");
   });
 
-  test("VULNERABILIDAD conocida: cambiar X-Forwarded-For evita el bloqueo", async ({ request }) => {
-    test.fail(true, "El límite usa la IP de X-Forwarded-For, que envía el cliente. Pendiente de decidir la corrección con Alberto.");
+  test("falsificar X-Forwarded-For no evita el bloqueo (Traefik añade la IP real al final)", async ({ request }) => {
     const email = "otro-objetivo@test.zihkon.local";
-    for (let i = 0; i < 12; i++) await credentialsAttempt(request, email, `mala-${i}`, `10.1.0.${i}`);
-    // Comportamiento seguro esperado: tras 12 fallos sobre el mismo email debería estar bloqueado.
-    expect(await credentialsAttempt(request, email, "otra", "10.1.0.99")).toContain("Demasiados intentos");
+    // El atacante cambia la primera IP en cada intento; el proxy añade siempre su IP real al final.
+    for (let i = 0; i < 8; i++) expect(await credentialsAttempt(request, email, `mala-${i}`, `10.1.0.${i}, 203.0.113.50`)).toBe("CredentialsSignin");
+    expect(await credentialsAttempt(request, email, "otra", "10.1.0.99, 203.0.113.50")).toContain("Demasiados intentos");
   });
 });
