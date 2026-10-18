@@ -20,7 +20,20 @@ export interface ReviewRow {
   status: string | null;
   reviewDate: Date | string | null;
   createdDate: Date | string | null;
+  approvalSentAt?: Date | string | null;
+  reminderCount?: number;
   gbpClient: { id: string; client: { clientId: string; clientName: string | null } } | null;
+}
+
+/** «Pendiente desde el dd/mm/aaaa · N recordatorios» para las que esperan la decisión del cliente. */
+function PendingInfo({ row }: { row: ReviewRow }) {
+  if (row.status !== "PENDING_APPROVAL" || !row.approvalSentAt) return null;
+  const n = row.reminderCount ?? 0;
+  return (
+    <span className="text-xs whitespace-nowrap text-muted-foreground">
+      desde el {formatDate(row.approvalSentAt)} · {n} recordatorio{n === 1 ? "" : "s"}
+    </span>
+  );
 }
 
 export function ReviewsTable({ rows }: { rows: ReviewRow[] }) {
@@ -69,7 +82,12 @@ export function ReviewsTable({ rows }: { rows: ReviewRow[] }) {
     {
       accessorKey: "status",
       header: "Estado",
-      cell: ({ row }) => <StatusBadge status={row.original.status} />,
+      cell: ({ row }) => (
+        <div className="flex flex-col items-start gap-1">
+          <StatusBadge status={row.original.status} />
+          <PendingInfo row={row.original} />
+        </div>
+      ),
     },
     {
       id: "date",

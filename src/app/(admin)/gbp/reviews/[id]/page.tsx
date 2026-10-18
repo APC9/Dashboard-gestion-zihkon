@@ -26,6 +26,8 @@ export default async function ReviewDetailPage({ params }: { params: Promise<{ i
   const timeline = [
     { label: "Fecha de la reseña", value: review.reviewDate },
     { label: "Registrada", value: review.createdDate },
+    { label: "Enviada al cliente para aprobar", value: review.approvalSentAt },
+    { label: `Último recordatorio (${review.reminderCount} de 7)`, value: review.lastReminderAt },
     { label: "Aprobada", value: review.approvedDate },
     { label: "Publicación programada", value: review.scheduledPublishDate },
     { label: "Publicada", value: review.publishedDate },
