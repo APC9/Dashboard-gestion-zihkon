@@ -29,3 +29,17 @@ export function registerFailedAttempt(key: string) {
 export function clearAttempts(key: string) {
   attempts.delete(key);
 }
+
+type HeaderValue = string | string[] | undefined;
+
+/**
+ * IP del cliente para el límite de intentos. Se usa la ÚLTIMA entrada de
+ * X-Forwarded-For: la añade el proxy de confianza (Traefik en Coolify). Las
+ * anteriores las puede inventar el propio cliente, y usarlas permitiría
+ * saltarse el bloqueo cambiando la cabecera en cada intento.
+ */
+export function clientIpFromHeaders(headers: Record<string, HeaderValue>): string {
+  const pick = (v: HeaderValue) => (Array.isArray(v) ? v.join(",") : v) ?? "";
+  const hops = pick(headers["x-forwarded-for"]).split(",").map((h) => h.trim()).filter(Boolean);
+  return hops.at(-1) ?? (pick(headers["x-real-ip"]).trim() || "unknown");
+}

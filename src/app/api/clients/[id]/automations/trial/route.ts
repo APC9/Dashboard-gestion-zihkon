@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { getRequestIp, logActivity } from "@/lib/activity-log";
-import { parseBody, parseParams, route } from "@/lib/api/handler";
+import { json, parseBody, parseParams, route } from "@/lib/api/handler";
 import { requireActor, requireAdmin } from "@/lib/auth/session";
 import { convertClientTrial, EXCLUSIVE_AUTOMATIONS, getClientTrial, startClientTrial } from "@/lib/data/automations";
 import { triggerClientAutomationsNotify } from "@/lib/n8n/triggers";
@@ -17,7 +17,8 @@ const bodySchema = z.discriminatedUnion("action", [
 export const GET = route(async (_req, ctx: Ctx) => {
   const actor = await requireActor();
   const { id } = parseParams(await ctx.params, uuidParam);
-  return getClientTrial(actor, id);
+  // Sin prueba se responde `null` explícito (route() convertiría null en { ok: true }).
+  return json(await getClientTrial(actor, id));
 });
 
 /** Activa la prueba gratuita (y avisa al cliente) o la convierte en suscripción. */
