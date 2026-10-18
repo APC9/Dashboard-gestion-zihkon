@@ -220,6 +220,10 @@ model GbpReviewActivity {
   approvedDate         DateTime? @map("approved_date")
   publishedDate        DateTime? @map("published_date")
   errorDetails         String?   @map("error_details")
+  /// Aviso de aprobación enviado al cliente y recordatorios diarios (máx. 7).
+  approvalSentAt       DateTime? @map("approval_sent_at") @db.Timestamptz
+  lastReminderAt       DateTime? @map("last_reminder_at") @db.Timestamptz
+  reminderCount        Int       @default(0) @map("reminder_count")
 
   gbpClient GbpClient?           @relation(fields: [clientId], references: [id])
   errors    GbpAutomationError[]
