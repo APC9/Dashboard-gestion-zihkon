@@ -26,6 +26,7 @@ export interface ClientFormInitial {
   clientName?: string | null;
   whatsappE164?: string | null;
   metricoolBlogId?: string | null;
+  email?: string | null;
   timezone?: string | null;
   active?: boolean | null;
 }
@@ -42,6 +43,8 @@ export function ClientForm({ initial }: { initial?: ClientFormInitial }) {
       clientName: initial?.clientName ?? "",
       whatsappE164: initial?.whatsappE164 ?? "",
       metricoolBlogId: initial?.metricoolBlogId ?? "",
+      email: initial?.email ?? "",
+      ...(initial?.clientId ? {} : { referralCode: "" }),
       timezone: initial?.timezone ?? "Europe/Madrid",
       active: initial?.active ?? true,
       gbp: null,
@@ -83,7 +86,7 @@ export function ClientForm({ initial }: { initial?: ClientFormInitial }) {
     }
   };
 
-  const text = (name: Exclude<keyof ClientFormValues, "active" | "gbp">, label: string, opts: { placeholder?: string; description?: string; list?: string; inputMode?: "tel" | "text" } = {}) => (
+  const text = (name: Exclude<keyof ClientFormValues, "active" | "gbp">, label: string, opts: { placeholder?: string; description?: string; list?: string; inputMode?: "tel" | "text" | "email"; type?: string } = {}) => (
     <Controller
       control={form.control}
       name={name}
@@ -97,6 +100,7 @@ export function ClientForm({ initial }: { initial?: ClientFormInitial }) {
             placeholder={opts.placeholder}
             list={opts.list}
             inputMode={opts.inputMode}
+            type={opts.type}
             aria-invalid={fieldState.invalid}
           />
           {opts.description ? <FieldDescription>{opts.description}</FieldDescription> : null}
@@ -115,6 +119,13 @@ export function ClientForm({ initial }: { initial?: ClientFormInitial }) {
           inputMode: "tel",
           description: "Formato internacional E.164. n8n identifica al cliente por este número.",
         })}
+        {text("email", "Email", { placeholder: "cliente@negocio.com", inputMode: "email", type: "email", description: "Opcional. Email de contacto del cliente." })}
+        {isEdit
+          ? null
+          : text("referralCode", "Código de referido (si viene recomendado)", {
+              placeholder: "ZK4UPR7",
+              description: "Opcional. El código de otro cliente: cuando este pague su 2.º mes, ese cliente gana 1 mes gratis.",
+            })}
         {text("metricoolBlogId", "Marca de Metricool (blogId)", {
           placeholder: "5362957",
           inputMode: "text",

@@ -1,4 +1,4 @@
-import { CalendarDays, CalendarRange, MessageCircle } from "lucide-react";
+import { CalendarDays, CalendarRange, Mail, MessageCircle } from "lucide-react";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { ClientStatusButton } from "@/components/clients/client-actions";
@@ -77,6 +77,11 @@ export default async function ClientDetailPage({ params, searchParams }: Props) 
             <span className="inline-flex items-center gap-1.5">
               <CalendarDays className="size-4" /> Alta: {formatDate(client.createdAt)}
             </span>
+            {client.email ? (
+              <a href={`mailto:${client.email}`} className="inline-flex items-center gap-1.5 hover:underline">
+                <Mail className="size-4" /> {client.email}
+              </a>
+            ) : null}
             <span className="inline-flex items-center gap-1.5">
               <CalendarRange className="size-4" /> Metricool: {client.metricoolBlogId ? <span className="font-mono">{client.metricoolBlogId}</span> : "sin marca"}
             </span>
@@ -101,7 +106,7 @@ export default async function ClientDetailPage({ params, searchParams }: Props) 
         }))}
       />
 
-      {tab === "general" && <GeneralTab client={client} />}
+      {tab === "general" && <GeneralTab actor={actor} client={client} />}
       {tab === "web" && <WebTab clientId={client.clientId} websites={websites} />}
       {tab === "gbp" && <GbpTab actor={actor} client={client} links={gbpLinks} />}
       {tab === "content" && <ContentTab actor={actor} clientId={client.clientId} />}

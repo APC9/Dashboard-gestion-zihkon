@@ -6,6 +6,7 @@ const base = {
   clientName: "Bar Prueba",
   whatsappE164: "+34600111222",
   metricoolBlogId: "",
+  email: "",
   timezone: "",
   active: true,
 };
@@ -68,5 +69,14 @@ describe("clientFormSchema", () => {
 
   it("rechaza zonas horarias inexistentes", () => {
     expect(clientFormSchema.safeParse({ ...base, timezone: "Marte/Olympus" }).success).toBe(false);
+  });
+});
+
+describe("edición parcial de cliente", () => {
+  it("no borra el email ni la marca de Metricool si no se envían", async () => {
+    const { clientUpdateSchema } = await import("@/lib/validation/client");
+    const r = clientUpdateSchema.parse({ clientName: "Nuevo nombre" });
+    expect(r).not.toHaveProperty("email");
+    expect(r).not.toHaveProperty("metricoolBlogId");
   });
 });

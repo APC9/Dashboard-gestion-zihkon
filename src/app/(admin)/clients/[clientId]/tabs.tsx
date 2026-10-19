@@ -2,6 +2,7 @@ import { AlertTriangle, ClipboardCheck, ExternalLink, FileText, Globe, Images, M
 import Link from "next/link";
 import { RunWorkflowButton } from "@/components/automations/run-workflow-button";
 import { ClientAutomationsToggles } from "@/components/clients/client-automations";
+import { ClientReferrals } from "@/components/clients/client-referrals";
 import { ClientTrialPanel } from "@/components/clients/client-trial";
 import { ClientForm } from "@/components/clients/client-form";
 import { DeleteClientButton } from "@/components/clients/client-actions";
@@ -22,6 +23,7 @@ import { findAuditsForClient } from "@/lib/data/audits";
 import { EXCLUSIVE_AUTOMATIONS, getClientTrial, listClientAutomations } from "@/lib/data/automations";
 import { isAdmin } from "@/lib/auth/permissions";
 import { getClientActivity, type GbpLink } from "@/lib/data/clients";
+import { getClientReferrals } from "@/lib/data/referrals";
 import { listIntakes, listMessageErrors } from "@/lib/data/content";
 import { getBacklogInfo, reviewSummary } from "@/lib/data/gbp";
 import { prisma } from "@/lib/db";
@@ -29,7 +31,8 @@ import { formatDate, formatDateTime, formatRelative } from "@/lib/format";
 import { WORKFLOWS } from "@/lib/n8n/workflows";
 import { cn } from "@/lib/utils";
 
-export function GeneralTab({ client }: { client: Client }) {
+export async function GeneralTab({ actor, client }: { actor: Actor; client: Client }) {
+  const referrals = await getClientReferrals(actor, client.clientId);
   return (
     <div className="grid gap-4 xl:grid-cols-[1fr_320px]">
       <Card>
@@ -42,6 +45,15 @@ export function GeneralTab({ client }: { client: Client }) {
         </CardContent>
       </Card>
       <div className="flex flex-col gap-4">
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Referidos</CardTitle>
+            <CardDescription>1 mes gratis de su plan por cada persona que traiga y pague su 2.º mes.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ClientReferrals clientId={client.clientId} info={referrals} canManage={isAdmin(actor)} />
+          </CardContent>
+        </Card>
         <Card>
           <CardHeader>
             <CardTitle className="text-base">Identificador</CardTitle>

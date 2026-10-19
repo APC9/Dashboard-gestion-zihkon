@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict hBdf8M2wupa7aCQjAgkbdt0oy8xviIoIbzs6IjWRrPB5uX1cbbLTVx41RPZ73cw
+\restrict hiGBDjEgKjp5ZF1Tscl0ZF0bhb4kLXm2KvRtDt8CdQbHrnoR03TSQbjTEgu4XPt
 
 -- Dumped from database version 16.15
 -- Dumped by pg_dump version 16.15
@@ -17,6 +17,28 @@ SET check_function_bodies = false;
 SET xmloption = content;
 SET client_min_messages = warning;
 SET row_security = off;
+
+--
+-- Name: gen_referral_code(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.gen_referral_code() RETURNS text
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+  alfabeto constant text := '23456789ABCDEFGHJKMNPQRSTUVWXYZ';
+  codigo text;
+BEGIN
+  LOOP
+    codigo := 'ZK';
+    FOR i IN 1..5 LOOP
+      codigo := codigo || substr(alfabeto, 1 + floor(random() * length(alfabeto))::int, 1);
+    END LOOP;
+    EXIT WHEN NOT EXISTS (SELECT 1 FROM public.clients WHERE referral_code = codigo);
+  END LOOP;
+  RETURN codigo;
+END $$;
+
 
 SET default_tablespace = '';
 
@@ -108,6 +130,48 @@ CREATE TABLE public.client_automations (
 
 
 --
+-- Name: client_referrals; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.client_referrals (
+    referral_id bigint NOT NULL,
+    referrer_client_id uuid NOT NULL,
+    referred_client_id uuid NOT NULL,
+    code_used text NOT NULL,
+    status text DEFAULT 'PENDING'::text NOT NULL,
+    reward_months integer DEFAULT 1 NOT NULL,
+    reward_plan text[],
+    second_payment_at timestamp with time zone,
+    applied_at timestamp with time zone,
+    notes text,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT client_referrals_check CHECK ((referrer_client_id <> referred_client_id)),
+    CONSTRAINT client_referrals_reward_months_check CHECK ((reward_months > 0)),
+    CONSTRAINT client_referrals_status_check CHECK ((status = ANY (ARRAY['PENDING'::text, 'EARNED'::text, 'APPLIED'::text, 'CANCELLED'::text])))
+);
+
+
+--
+-- Name: client_referrals_referral_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.client_referrals_referral_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: client_referrals_referral_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.client_referrals_referral_id_seq OWNED BY public.client_referrals.referral_id;
+
+
+--
 -- Name: client_websites; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -138,6 +202,10 @@ CREATE TABLE public.clients (
     active boolean DEFAULT true NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     metricool_blog_id text,
+    email text,
+    referral_code text DEFAULT public.gen_referral_code() NOT NULL,
+    referred_by_client_id uuid,
+    CONSTRAINT clients_email_check CHECK (((email IS NULL) OR (email ~* '^[^@\s]+@[^@\s]+\.[^@\s]+$'::text))),
     CONSTRAINT clients_whatsapp_e164_check CHECK ((whatsapp_e164 ~ '^[+][1-9][0-9]{7,14}$'::text))
 );
 
@@ -500,6 +568,13 @@ ALTER TABLE ONLY public.auditorias_locales ALTER COLUMN id SET DEFAULT nextval('
 
 
 --
+-- Name: client_referrals referral_id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.client_referrals ALTER COLUMN referral_id SET DEFAULT nextval('public.client_referrals_referral_id_seq'::regclass);
+
+
+--
 -- Name: gbp_automation_errors id; Type: DEFAULT; Schema: public; Owner: -
 --
 
@@ -550,6 +625,22 @@ ALTER TABLE ONLY public.automation_catalog
 
 ALTER TABLE ONLY public.client_automations
     ADD CONSTRAINT client_automations_pkey PRIMARY KEY (client_id, automation_key);
+
+
+--
+-- Name: client_referrals client_referrals_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.client_referrals
+    ADD CONSTRAINT client_referrals_pkey PRIMARY KEY (referral_id);
+
+
+--
+-- Name: client_referrals client_referrals_referred_client_id_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.client_referrals
+    ADD CONSTRAINT client_referrals_referred_client_id_key UNIQUE (referred_client_id);
 
 
 --
@@ -774,10 +865,24 @@ CREATE INDEX client_automations_trial_open_idx ON public.client_automations USIN
 
 
 --
+-- Name: clients_referral_code_key; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX clients_referral_code_key ON public.clients USING btree (upper(referral_code));
+
+
+--
 -- Name: gbp_review_activity_pending_idx; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX gbp_review_activity_pending_idx ON public.gbp_review_activity USING btree (client_id, approval_sent_at) WHERE (status = 'PENDING_APPROVAL'::text);
+
+
+--
+-- Name: idx_client_referrals_referrer; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_client_referrals_referrer ON public.client_referrals USING btree (referrer_client_id, status);
 
 
 --
@@ -965,11 +1070,35 @@ ALTER TABLE ONLY public.client_automations
 
 
 --
+-- Name: client_referrals client_referrals_referred_client_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.client_referrals
+    ADD CONSTRAINT client_referrals_referred_client_id_fkey FOREIGN KEY (referred_client_id) REFERENCES public.clients(client_id) ON DELETE CASCADE;
+
+
+--
+-- Name: client_referrals client_referrals_referrer_client_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.client_referrals
+    ADD CONSTRAINT client_referrals_referrer_client_id_fkey FOREIGN KEY (referrer_client_id) REFERENCES public.clients(client_id) ON DELETE CASCADE;
+
+
+--
 -- Name: client_websites client_websites_client_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.client_websites
     ADD CONSTRAINT client_websites_client_id_fkey FOREIGN KEY (client_id) REFERENCES public.clients(client_id) ON DELETE CASCADE;
+
+
+--
+-- Name: clients clients_referred_by_client_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.clients
+    ADD CONSTRAINT clients_referred_by_client_id_fkey FOREIGN KEY (referred_by_client_id) REFERENCES public.clients(client_id) ON DELETE SET NULL;
 
 
 --
@@ -1104,5 +1233,5 @@ ALTER TABLE ONLY public.whatsapp_sessions
 -- PostgreSQL database dump complete
 --
 
-\unrestrict hBdf8M2wupa7aCQjAgkbdt0oy8xviIoIbzs6IjWRrPB5uX1cbbLTVx41RPZ73cw
+\unrestrict hiGBDjEgKjp5ZF1Tscl0ZF0bhb4kLXm2KvRtDt8CdQbHrnoR03TSQbjTEgu4XPt
 

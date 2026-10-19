@@ -36,6 +36,10 @@ model Client {
   whatsappE164   String?   @map("whatsapp_e164")
   // Marca de Metricool del cliente (blogId): las publicaciones se crean en ella por API.
   metricoolBlogId String?  @map("metricool_blog_id")
+  email          String?
+  // Código de referido único (lo genera la BD al dar de alta: ZK + 5 caracteres).
+  referralCode   String    @default(dbgenerated("gen_referral_code()")) @map("referral_code")
+  referredByClientId String? @map("referred_by_client_id") @db.Uuid
   timezone       String?
   active         Boolean?
   createdAt      DateTime? @default(now()) @map("created_at")
@@ -46,8 +50,34 @@ model Client {
   processedMessages ProcessedMessage[]
   gbpProfiles       GbpClient[]
   automations       ClientAutomation[]
+  referredBy        Client?          @relation("ClientReferredBy", fields: [referredByClientId], references: [clientId])
+  referredClients   Client[]         @relation("ClientReferredBy")
+  referralsMade     ClientReferral[] @relation("ReferralReferrer")
+  referralReceived  ClientReferral?  @relation("ReferralReferred")
 
   @@map("clients")
+}
+
+/// Programa de referidos: el dueño del código gana 1 mes gratis cuando el referido paga su 2.º mes.
+model ClientReferral {
+  referralId       BigInt    @id @default(autoincrement()) @map("referral_id")
+  referrerClientId String    @map("referrer_client_id") @db.Uuid
+  referredClientId String    @unique @map("referred_client_id") @db.Uuid
+  codeUsed         String    @map("code_used")
+  /// PENDING · EARNED (2.º mes pagado, mes gratis por aplicar) · APPLIED · CANCELLED
+  status           String    @default("PENDING")
+  rewardMonths     Int       @default(1) @map("reward_months")
+  rewardPlan       String[]  @map("reward_plan")
+  secondPaymentAt  DateTime? @map("second_payment_at") @db.Timestamptz
+  appliedAt        DateTime? @map("applied_at") @db.Timestamptz
+  notes            String?
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt        DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  referrer Client @relation("ReferralReferrer", fields: [referrerClientId], references: [clientId], onDelete: Cascade)
+  referred Client @relation("ReferralReferred", fields: [referredClientId], references: [clientId], onDelete: Cascade)
+
+  @@map("client_referrals")
 }
 
 model ClientWebsite {

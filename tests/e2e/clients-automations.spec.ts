@@ -46,6 +46,39 @@ test.describe("gestión de clientes", () => {
   });
 });
 
+test.describe("referidos", () => {
+  test("alta con código de referido y mes gratis tras el 2.º pago", async ({ page }) => {
+    const dueño = await insertClient("Bar Dueño", "+34600000501");
+    const codigo = (await withDb((db) => db.query("SELECT referral_code FROM public.clients WHERE client_id = $1", [dueño]))).rows[0].referral_code;
+    await page.goto("/clients/new");
+    await page.locator("#clientName").fill("Bar Recomendado");
+    await page.locator("#whatsappE164").fill("+34600000502");
+    await page.locator("#email").fill("hola@recomendado.es");
+    await page.locator("#referralCode").fill(codigo.toLowerCase());
+    await page.getByRole("button", { name: "Crear cliente" }).click();
+    await expect(page.getByText("Vino recomendado por")).toBeVisible();
+    await expect(page.getByText("hola@recomendado.es")).toBeVisible();
+    await expect(page.getByTestId("referral-code")).toHaveText(/^ZK[0-9A-Z]{5}$/);
+
+    await page.goto(`/clients/${dueño}`);
+    await expect(page.getByText("Esperando su 2.º pago")).toBeVisible();
+    await page.getByRole("button", { name: "2.º mes pagado" }).click();
+    await expect(page.getByText("1 mes gratis por aplicar")).toBeVisible();
+    await page.getByRole("button", { name: "Mes gratis aplicado" }).click();
+    await expect(page.getByText("Mes gratis aplicado", { exact: true })).toBeVisible();
+  });
+
+  test("código de referido inexistente: error en el campo y no se crea", async ({ page }) => {
+    await page.goto("/clients/new");
+    await page.locator("#clientName").fill("Bar Sin Código");
+    await page.locator("#whatsappE164").fill("+34600000503");
+    await page.locator("#referralCode").fill("ZK99999");
+    await page.getByRole("button", { name: "Crear cliente" }).click();
+    await expect(page.getByText("No existe ningún cliente con ese código")).toBeVisible();
+    expect((await withDb((db) => db.query("SELECT count(*)::int AS n FROM public.clients"))).rows[0].n).toBe(0);
+  });
+});
+
 test.describe("ciclo de vida de automatizaciones", () => {
   test("activar, guardar y avisar; después finalizar", async ({ page }) => {
     const id = await insertClient("Cliente Automat", "+34600000201");

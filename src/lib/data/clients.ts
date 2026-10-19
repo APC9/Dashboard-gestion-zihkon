@@ -1,5 +1,6 @@
 import "server-only";
 import { ConflictError, ForbiddenError, NotFoundError } from "@/lib/api/errors";
+import { ValidationError } from "@/lib/api/handler";
 import { assertClientAccess, clientScope, isAdmin } from "@/lib/auth/permissions";
 import type { Actor } from "@/lib/auth/types";
 import { prisma } from "@/lib/db";
@@ -119,10 +120,18 @@ export async function getClientOverview(actor: Actor, clientId: string) {
   return { client, websites, gbpLinks: toGbpLinks(gbpProfiles), counts: counts?._count };
 }
 
+/** El dueño de un código de referido (sin distinguir mayúsculas). */
+async function findReferrerByCode(code: string) {
+  const rows = await prisma.$queryRaw<{ client_id: string; referral_code: string }[]>`SELECT client_id, referral_code FROM public.clients WHERE upper(referral_code) = upper(${code}) LIMIT 1`;
+  if (!rows[0]) throw new ValidationError({ referralCode: ["No existe ningún cliente con ese código de referido"] });
+  return { clientId: rows[0].client_id, referralCode: rows[0].referral_code };
+}
+
 type ClientInput = {
   clientName?: string;
   whatsappE164?: string;
   metricoolBlogId?: string;
+  email?: string;
   timezone?: string;
   active?: boolean;
 };
@@ -130,7 +139,7 @@ type ClientInput = {
 /** Crea el cliente y, si se indica, su perfil de Google Business en la misma transacción. */
 export async function createClient(actor: Actor, input: ClientCreateInput) {
   if (!isAdmin(actor)) throw new ForbiddenError();
-  const { gbp, ...clientInput } = input;
+  const { gbp, referralCode, ...clientInput } = input;
   const clientName = clientInput.clientName.trim();
   await assertUniquePhone(clientInput.whatsappE164);
   const sameName = await prisma.client.findFirst({
@@ -139,9 +148,11 @@ export async function createClient(actor: Actor, input: ClientCreateInput) {
   });
   if (sameName) throw new ConflictError(`Ya existe un cliente llamado "${clientName}"`);
   if (gbp) await assertUniqueLocation(gbp.locationId);
+  const referrer = referralCode ? await findReferrerByCode(referralCode) : null;
 
   return prisma.$transaction(async (tx) => {
-    const client = await tx.client.create({ data: emptyToNull(clientInput) });
+    const client = await tx.client.create({ data: { ...emptyToNull(clientInput), referredByClientId: referrer?.clientId ?? null } });
+    if (referrer) await tx.clientReferral.create({ data: { referrerClientId: referrer.clientId, referredClientId: client.clientId, codeUsed: referrer.referralCode } });
     const gbpProfile = gbp
       ? await tx.gbpClient.create({ data: { ...newProfileData(client.clientId, gbp), active: clientInput.active } })
       : null;
