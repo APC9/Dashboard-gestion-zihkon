@@ -57,7 +57,7 @@ export async function getIntake(actor: Actor, intakeId: string) {
   const intake = await prisma.contentIntake.findUnique({
     where: { intakeId },
     include: {
-      client: { select: { clientId: true, clientName: true, whatsappE164: true, driveFolderId: true } },
+      client: { select: { clientId: true, clientName: true, whatsappE164: true, metricoolBlogId: true } },
       media: { orderBy: [{ position: "asc" }, { createdAt: "asc" }] },
       sessions: {
         orderBy: { createdAt: "desc" },

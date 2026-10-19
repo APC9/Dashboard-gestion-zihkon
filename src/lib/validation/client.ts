@@ -1,17 +1,16 @@
 import { z } from "zod";
-import { optionalText, paginationSchema, requiredPhoneField, timezoneField } from "./common";
+import { optionalPattern, paginationSchema, requiredPhoneField, timezoneField } from "./common";
 import { gbpProfileFields } from "./gbp";
 
-const DRIVE_ID_RE = /^[A-Za-z0-9_-]{10,200}$/;
+/** blogId de Metricool: solo cifras. */
+const METRICOOL_BLOG_ID_RE = /^\d{3,15}$/;
 
 export const clientFormSchema = z.object({
   clientName: z.string().trim().min(2, "El nombre es obligatorio").max(120),
-  // En la BD estas columnas son NOT NULL: no se pueden dejar vacías.
+  // En la BD esta columna es NOT NULL: no se puede dejar vacía.
   whatsappE164: requiredPhoneField,
-  driveFolderId: z.string().trim().regex(DRIVE_ID_RE, "ID de carpeta de Drive obligatorio o no válido"),
-  googleSheetId: z.string().trim().regex(DRIVE_ID_RE, "ID de Google Sheet obligatorio o no válido"),
-  // Vacío => valor por defecto de la columna en la BD.
-  googleSheetTab: optionalText(100).transform((v) => v || "Mtr_plantilla_calendario"),
+  // Marca del cliente en Metricool (las publicaciones se crean en ella). Opcional hasta que se cree la marca.
+  metricoolBlogId: optionalPattern(METRICOOL_BLOG_ID_RE, "El blogId de Metricool son solo números, p. ej. 5362957", 15),
   timezone: timezoneField.transform((v) => v || "Europe/Madrid"),
   active: z.boolean(),
 });

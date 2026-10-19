@@ -1,35 +1,30 @@
 /**
- * Previews de Google Drive SIN credenciales: solo funcionan si el archivo
- * está compartido públicamente ("cualquiera con el enlace"). Si no, la UI
- * cae a mostrar la ficha del archivo. Nunca se usan tokens de Drive aquí.
+ * Previews de archivos de contenido SIN credenciales.
+ * Los archivos nuevos están en el almacenamiento de Metricool (URL directa); los antiguos
+ * conservan su enlace de Google Drive, que solo se ve si estaba compartido públicamente.
  */
 
 const DRIVE_ID_RE = /^[A-Za-z0-9_-]{10,}$/;
 
-export function extractDriveFileId(driveUrl?: string | null, driveFileId?: string | null): string | null {
-  if (driveFileId && DRIVE_ID_RE.test(driveFileId)) return driveFileId;
-  if (!driveUrl) return null;
-  const match = driveUrl.match(/\/d\/([A-Za-z0-9_-]{10,})/) ?? driveUrl.match(/[?&]id=([A-Za-z0-9_-]{10,})/);
-  return match?.[1] ?? null;
+function driveFileId(url?: string | null): string | null {
+  if (!url || !/drive\.google\.com/.test(url)) return null;
+  const match = url.match(/\/d\/([A-Za-z0-9_-]{10,})/) ?? url.match(/[?&]id=([A-Za-z0-9_-]{10,})/);
+  return match?.[1] && DRIVE_ID_RE.test(match[1]) ? match[1] : null;
 }
 
-export function driveThumbnailUrl(driveUrl?: string | null, driveFileId?: string | null, size = 600): string | null {
-  const id = extractDriveFileId(driveUrl, driveFileId);
-  return id ? `https://drive.google.com/thumbnail?id=${id}&sz=w${size}` : null;
+export function mediaThumbnailUrl(url?: string | null, size = 600): string | null {
+  const id = driveFileId(url);
+  if (id) return `https://drive.google.com/thumbnail?id=${id}&sz=w${size}`;
+  return url && /^https:\/\//.test(url) ? url : null;
 }
 
-export function driveViewUrl(driveUrl?: string | null, driveFileId?: string | null): string | null {
-  if (driveUrl && /^https:\/\//.test(driveUrl)) return driveUrl;
-  const id = extractDriveFileId(driveUrl, driveFileId);
-  return id ? `https://drive.google.com/file/d/${id}/view` : null;
+export function mediaViewUrl(url?: string | null): string | null {
+  return url && /^https:\/\//.test(url) ? url : null;
 }
 
-export function driveFolderUrl(folderId?: string | null) {
-  return folderId ? `https://drive.google.com/drive/folders/${encodeURIComponent(folderId)}` : null;
-}
-
-export function googleSheetUrl(sheetId?: string | null) {
-  return sheetId ? `https://docs.google.com/spreadsheets/d/${encodeURIComponent(sheetId)}/edit` : null;
+/** Auditorías: el PDF sigue guardándose en Google Drive. */
+export function driveViewUrl(_url?: string | null, fileId?: string | null): string | null {
+  return fileId && DRIVE_ID_RE.test(fileId) ? `https://drive.google.com/file/d/${fileId}/view` : null;
 }
 
 export function isImage(mediaType?: string | null, mimeType?: string | null) {

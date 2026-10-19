@@ -56,7 +56,7 @@ async function resolveTarget(actor: Actor, workflow: WorkflowDefinition, resourc
         clientLabel: client.clientName,
         resourceType: "client",
         resourceId: client.clientId,
-        context: { client_name: client.clientName, whatsapp_e164: client.whatsappE164, drive_folder_id: client.driveFolderId },
+        context: { client_name: client.clientName, whatsapp_e164: client.whatsappE164, metricool_blog_id: client.metricoolBlogId },
       };
     }
     case "website": {

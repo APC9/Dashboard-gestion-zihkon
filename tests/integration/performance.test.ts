@@ -17,9 +17,6 @@ beforeAll(async () => {
     data: Array.from({ length: N }, (_, i) => ({
       clientName: `Cliente carga ${i}`,
       whatsappE164: `+3462${String(i).padStart(7, "0")}`,
-      driveFolderId: "drive-folder-test-0001",
-      googleSheetId: "sheet-id-test-000001",
-      googleSheetTab: "Plantilla_Base",
       timezone: "Europe/Madrid",
       active: i % 3 !== 0,
     })),

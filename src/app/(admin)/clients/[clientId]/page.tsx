@@ -1,4 +1,4 @@
-import { CalendarDays, ExternalLink, FileSpreadsheet, FolderOpen, MessageCircle } from "lucide-react";
+import { CalendarDays, CalendarRange, MessageCircle } from "lucide-react";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { ClientStatusButton } from "@/components/clients/client-actions";
@@ -8,7 +8,6 @@ import { PageHeader } from "@/components/shared/page-header";
 import { NotFoundError } from "@/lib/api/errors";
 import { requireAdminPage } from "@/lib/auth/session";
 import { getClientOverview } from "@/lib/data/clients";
-import { driveFolderUrl, googleSheetUrl } from "@/lib/drive";
 import { formatDate, whatsappLink } from "@/lib/format";
 import { z } from "zod";
 import {
@@ -78,16 +77,9 @@ export default async function ClientDetailPage({ params, searchParams }: Props) 
             <span className="inline-flex items-center gap-1.5">
               <CalendarDays className="size-4" /> Alta: {formatDate(client.createdAt)}
             </span>
-            {client.driveFolderId ? (
-              <a href={driveFolderUrl(client.driveFolderId)!} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 hover:underline">
-                <FolderOpen className="size-4" /> Drive <ExternalLink className="size-3" />
-              </a>
-            ) : null}
-            {client.googleSheetId ? (
-              <a href={googleSheetUrl(client.googleSheetId)!} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 hover:underline">
-                <FileSpreadsheet className="size-4" /> Sheet <ExternalLink className="size-3" />
-              </a>
-            ) : null}
+            <span className="inline-flex items-center gap-1.5">
+              <CalendarRange className="size-4" /> Metricool: {client.metricoolBlogId ? <span className="font-mono">{client.metricoolBlogId}</span> : "sin marca"}
+            </span>
           </span>
         }
         actions={<ClientStatusButton clientId={client.clientId} clientName={name} active={client.active === true} />}

@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict jUljKWtEGEBtxyH9Jzh8SIGGvccUQ0Mf7S4NsMyGtGBu7dJ1VJz4Ahx4ygYbhkb
+\restrict hBdf8M2wupa7aCQjAgkbdt0oy8xviIoIbzs6IjWRrPB5uX1cbbLTVx41RPZ73cw
 
 -- Dumped from database version 16.15
 -- Dumped by pg_dump version 16.15
@@ -37,7 +37,6 @@ CREATE TABLE public.auditorias_locales (
     informe jsonb NOT NULL,
     pdf_url text NOT NULL,
     drive_file_id text,
-    cloudinary_public_id text,
     created_at timestamp with time zone DEFAULT now() NOT NULL
 );
 
@@ -135,12 +134,10 @@ CREATE TABLE public.clients (
     client_id uuid DEFAULT gen_random_uuid() NOT NULL,
     client_name text,
     whatsapp_e164 text NOT NULL,
-    drive_folder_id text NOT NULL,
-    google_sheet_id text NOT NULL,
     timezone text DEFAULT 'Europe/Madrid'::text NOT NULL,
     active boolean DEFAULT true NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
-    google_sheet_tab text DEFAULT 'Mtr_plantilla_calendario'::text NOT NULL,
+    metricool_blog_id text,
     CONSTRAINT clients_whatsapp_e164_check CHECK ((whatsapp_e164 ~ '^[+][1-9][0-9]{7,14}$'::text))
 );
 
@@ -174,11 +171,10 @@ CREATE TABLE public.content_media (
     media_type text NOT NULL,
     mime_type text,
     original_file_name text,
-    drive_file_id text,
-    drive_url text,
     "position" integer DEFAULT 1 NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     metadata jsonb DEFAULT '{}'::jsonb NOT NULL,
+    media_url text,
     CONSTRAINT content_media_media_type_check CHECK ((media_type = ANY (ARRAY['image'::text, 'video'::text, 'audio'::text, 'document'::text])))
 );
 
@@ -196,8 +192,6 @@ CREATE TABLE public.content_session_media (
     mime_type text NOT NULL,
     filename text,
     media_reference text,
-    drive_file_id text,
-    drive_url text,
     caption text,
     message_timestamp timestamp with time zone,
     "position" integer NOT NULL,
@@ -286,7 +280,6 @@ CREATE TABLE public.gbp_clients (
     preferred_language text,
     response_mode text DEFAULT 'manual'::text NOT NULL,
     custom_ai_instructions text,
-    telegram_chat_id text,
     delay_minutes integer DEFAULT 15 NOT NULL,
     contact_email text,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
@@ -382,6 +375,42 @@ CREATE TABLE public.gbp_test_reviews (
     reply_time timestamp with time zone,
     CONSTRAINT gbp_test_reviews_star_rating_check CHECK ((star_rating = ANY (ARRAY['ONE'::text, 'TWO'::text, 'THREE'::text, 'FOUR'::text, 'FIVE'::text])))
 );
+
+
+--
+-- Name: metricool_posts; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.metricool_posts (
+    id bigint NOT NULL,
+    intake_id uuid NOT NULL,
+    client_id uuid NOT NULL,
+    network text NOT NULL,
+    metricool_post_id bigint NOT NULL,
+    publication_at timestamp without time zone NOT NULL,
+    timezone text DEFAULT 'Europe/Madrid'::text NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT metricool_posts_network_check CHECK ((network = ANY (ARRAY['Facebook'::text, 'Instagram'::text, 'TikTok'::text, 'GBP'::text])))
+);
+
+
+--
+-- Name: metricool_posts_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.metricool_posts_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: metricool_posts_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.metricool_posts_id_seq OWNED BY public.metricool_posts.id;
 
 
 --
@@ -485,19 +514,10 @@ ALTER TABLE ONLY public.gbp_review_activity ALTER COLUMN id SET DEFAULT nextval(
 
 
 --
--- Name: auditorias_locales auditorias_locales_email_normalizado_key; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: metricool_posts id; Type: DEFAULT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.auditorias_locales
-    ADD CONSTRAINT auditorias_locales_email_normalizado_key UNIQUE (email_normalizado);
-
-
---
--- Name: auditorias_locales auditorias_locales_negocio_clave_key; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.auditorias_locales
-    ADD CONSTRAINT auditorias_locales_negocio_clave_key UNIQUE (negocio_clave);
+ALTER TABLE ONLY public.metricool_posts ALTER COLUMN id SET DEFAULT nextval('public.metricool_posts_id_seq'::regclass);
 
 
 --
@@ -682,6 +702,22 @@ ALTER TABLE ONLY public.gbp_review_activity
 
 ALTER TABLE ONLY public.gbp_test_reviews
     ADD CONSTRAINT gbp_test_reviews_pkey PRIMARY KEY (review_id);
+
+
+--
+-- Name: metricool_posts metricool_posts_intake_id_network_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.metricool_posts
+    ADD CONSTRAINT metricool_posts_intake_id_network_key UNIQUE (intake_id, network);
+
+
+--
+-- Name: metricool_posts metricool_posts_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.metricool_posts
+    ADD CONSTRAINT metricool_posts_pkey PRIMARY KEY (id);
 
 
 --
@@ -878,6 +914,13 @@ CREATE INDEX idx_gbp_test_reviews_location ON public.gbp_test_reviews USING btre
 
 
 --
+-- Name: idx_metricool_posts_client; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_metricool_posts_client ON public.metricool_posts USING btree (client_id, publication_at);
+
+
+--
 -- Name: idx_processed_messages_client_received; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -1002,6 +1045,22 @@ ALTER TABLE ONLY public.gbp_review_activity
 
 
 --
+-- Name: metricool_posts metricool_posts_client_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.metricool_posts
+    ADD CONSTRAINT metricool_posts_client_id_fkey FOREIGN KEY (client_id) REFERENCES public.clients(client_id) ON DELETE CASCADE;
+
+
+--
+-- Name: metricool_posts metricool_posts_intake_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.metricool_posts
+    ADD CONSTRAINT metricool_posts_intake_id_fkey FOREIGN KEY (intake_id) REFERENCES public.content_intakes(intake_id) ON DELETE CASCADE;
+
+
+--
 -- Name: processed_messages processed_messages_client_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -1045,5 +1104,5 @@ ALTER TABLE ONLY public.whatsapp_sessions
 -- PostgreSQL database dump complete
 --
 
-\unrestrict jUljKWtEGEBtxyH9Jzh8SIGGvccUQ0Mf7S4NsMyGtGBu7dJ1VJz4Ahx4ygYbhkb
+\unrestrict hBdf8M2wupa7aCQjAgkbdt0oy8xviIoIbzs6IjWRrPB5uX1cbbLTVx41RPZ73cw
 

@@ -26,7 +26,6 @@ export interface GbpProfileInitial {
   preferredLanguage?: string | null;
   responseMode?: string | null;
   customAiInstructions?: string | null;
-  telegramChatId?: string | null;
   delayMinutes?: number | null;
   contactEmail?: string | null;
   active?: boolean | null;
@@ -67,7 +66,6 @@ export function GbpProfileForm({
       preferredLanguage: initial?.preferredLanguage ?? GBP_FIELD_DEFAULTS.preferredLanguage,
       responseMode: initial?.responseMode === "automatic" ? "automatic" : "manual",
       customAiInstructions: initial?.customAiInstructions ?? GBP_FIELD_DEFAULTS.customAiInstructions,
-      telegramChatId: initial?.telegramChatId ?? GBP_FIELD_DEFAULTS.telegramChatId,
       delayMinutes: initial?.delayMinutes ?? GBP_FIELD_DEFAULTS.delayMinutes,
       contactEmail: initial?.contactEmail ?? GBP_FIELD_DEFAULTS.contactEmail,
       active: initial?.active ?? true,

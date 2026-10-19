@@ -34,9 +34,8 @@ model Client {
   clientId       String    @id @default(uuid()) @map("client_id") @db.Uuid
   clientName     String?   @map("client_name")
   whatsappE164   String?   @map("whatsapp_e164")
-  driveFolderId  String?   @map("drive_folder_id")
-  googleSheetId  String?   @map("google_sheet_id")
-  googleSheetTab String?   @map("google_sheet_tab")
+  // Marca de Metricool del cliente (blogId): las publicaciones se crean en ella por API.
+  metricoolBlogId String?  @map("metricool_blog_id")
   timezone       String?
   active         Boolean?
   createdAt      DateTime? @default(now()) @map("created_at")
@@ -98,8 +97,8 @@ model ContentMedia {
   mediaType         String?   @map("media_type")
   mimeType          String?   @map("mime_type")
   originalFileName  String?   @map("original_file_name")
-  driveFileId       String?   @map("drive_file_id")
-  driveUrl          String?   @map("drive_url")
+  // URL del archivo en el almacenamiento de Metricool (los antiguos conservan su enlace de Drive).
+  mediaUrl          String?   @map("media_url")
   position          Int?
   createdAt         DateTime? @default(now()) @map("created_at")
   metadata          Json?     @db.JsonB
@@ -143,8 +142,6 @@ model ContentSessionMedia {
   mimeType         String?   @map("mime_type")
   filename         String?
   mediaReference   String?   @map("media_reference")
-  driveFileId      String?   @map("drive_file_id")
-  driveUrl         String?   @map("drive_url")
   caption          String?
   messageTimestamp DateTime? @map("message_timestamp")
   position         Int?
@@ -185,7 +182,6 @@ model GbpClient {
   preferredLanguage    String?   @map("preferred_language")
   responseMode         String?   @map("response_mode")
   customAiInstructions String?   @map("custom_ai_instructions")
-  telegramChatId       String?   @map("telegram_chat_id")
   delayMinutes         Int?      @map("delay_minutes")
   contactEmail         String?   @map("contact_email")
   // Puesta al día de reseñas antiguas: PENDING (empieza en la próxima hora) → IN_PROGRESS → LIVE (al día).
@@ -260,7 +256,6 @@ model AuditoriaLocal {
   informe            Json?     @db.JsonB
   pdfUrl             String?   @map("pdf_url")
   driveFileId        String?   @map("drive_file_id")
-  cloudinaryPublicId String?   @map("cloudinary_public_id")
   createdAt          DateTime? @default(now()) @map("created_at")
 
   @@map("auditorias_locales")

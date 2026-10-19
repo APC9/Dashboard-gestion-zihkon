@@ -2,7 +2,7 @@
 
 import { ExternalLink, FileAudio, FileText, FileVideo, ImageOff } from "lucide-react";
 import { useState } from "react";
-import { driveThumbnailUrl, driveViewUrl, isImage, isVideo } from "@/lib/drive";
+import { isImage, isVideo, mediaThumbnailUrl, mediaViewUrl } from "@/lib/drive";
 import { formatBytes, formatDateTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { StatusBadge } from "@/components/shared/status-badge";
@@ -12,8 +12,7 @@ export interface MediaItem {
   name: string | null;
   mediaType: string | null;
   mimeType: string | null;
-  driveUrl: string | null;
-  driveFileId: string | null;
+  url: string | null;
   position: number | null;
   createdAt: Date | string | null;
   fileSize?: string | number | null;
@@ -22,12 +21,12 @@ export interface MediaItem {
 }
 
 /**
- * Preview de un archivo de Drive. Solo carga la miniatura pública (sin
+ * Preview de un archivo (Metricool o, si es antiguo, Drive). Solo carga la miniatura pública (sin
  * credenciales). Si falla o no hay URL, muestra la ficha del archivo.
  */
 export function MediaThumb({ item, className }: { item: MediaItem; className?: string }) {
   const [failed, setFailed] = useState(false);
-  const thumb = isImage(item.mediaType, item.mimeType) ? driveThumbnailUrl(item.driveUrl, item.driveFileId, 400) : null;
+  const thumb = isImage(item.mediaType, item.mimeType) ? mediaThumbnailUrl(item.url, 400) : null;
   const Icon = isVideo(item.mediaType, item.mimeType)
     ? FileVideo
     : (item.mimeType ?? "").startsWith("audio/")
@@ -62,7 +61,7 @@ export function MediaThumb({ item, className }: { item: MediaItem; className?: s
 }
 
 export function MediaCard({ item }: { item: MediaItem }) {
-  const view = driveViewUrl(item.driveUrl, item.driveFileId);
+  const view = mediaViewUrl(item.url);
   return (
     <div className="flex flex-col gap-2 rounded-xl border bg-card p-2">
       <MediaThumb item={item} />

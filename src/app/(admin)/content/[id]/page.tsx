@@ -1,4 +1,3 @@
-import { ExternalLink, FolderOpen } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -11,7 +10,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { NotFoundError } from "@/lib/api/errors";
 import { requireAdminPage } from "@/lib/auth/session";
 import { getIntake } from "@/lib/data/content";
-import { driveFolderUrl } from "@/lib/drive";
 import { formatDateTime } from "@/lib/format";
 
 export const metadata: Metadata = { title: "Contenido" };
@@ -24,7 +22,6 @@ export default async function IntakeDetailPage({ params }: { params: Promise<{ i
     if (e instanceof NotFoundError) notFound();
     throw e;
   });
-  const folder = driveFolderUrl(intake.client?.driveFolderId);
 
   return (
     <>
@@ -36,13 +33,6 @@ export default async function IntakeDetailPage({ params }: { params: Promise<{ i
           </span>
         }
         description={`Recibido ${formatDateTime(intake.createdAt)} · ${intake.media.length} archivo(s)${intake.expectedCount ? ` de ${intake.expectedCount} esperados` : ""}`}
-        actions={
-          folder ? (
-            <a href={folder} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-sm text-primary hover:underline">
-              <FolderOpen className="size-4" /> Carpeta de Drive <ExternalLink className="size-3" />
-            </a>
-          ) : null
-        }
       />
 
       <Card>
@@ -70,8 +60,7 @@ export default async function IntakeDetailPage({ params }: { params: Promise<{ i
                   name: m.originalFileName,
                   mediaType: m.mediaType,
                   mimeType: m.mimeType,
-                  driveUrl: m.driveUrl,
-                  driveFileId: m.driveFileId,
+                  url: m.mediaUrl,
                   position: m.position,
                   createdAt: m.createdAt,
                 }}
@@ -101,8 +90,7 @@ export default async function IntakeDetailPage({ params }: { params: Promise<{ i
                     name: m.filename,
                     mediaType: m.mediaType,
                     mimeType: m.mimeType,
-                    driveUrl: m.driveUrl,
-                    driveFileId: m.driveFileId,
+                    url: m.mediaReference,
                     position: m.position,
                     createdAt: m.messageTimestamp ?? m.createdAt,
                     fileSize: m.fileSize?.toString() ?? null,

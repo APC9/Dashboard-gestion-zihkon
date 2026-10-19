@@ -11,9 +11,7 @@ const input = (over: Record<string, unknown> = {}) =>
   clientCreateSchema.parse({
     clientName: "Bar Prueba",
     whatsappE164: "+34600111222",
-    driveFolderId: "drive-folder-test-0001",
-    googleSheetId: "sheet-id-test-000001",
-    googleSheetTab: "",
+    metricoolBlogId: "",
     timezone: "",
     active: true,
     ...over,
@@ -23,8 +21,15 @@ const q = (over: Record<string, unknown> = {}) => clientListQuerySchema.parse(ov
 describe("alta de clientes", () => {
   it("crea el cliente con valores por defecto", async () => {
     const { client, gbpProfile } = await createClient(admin, input());
-    expect(client).toMatchObject({ clientName: "Bar Prueba", whatsappE164: "+34600111222", googleSheetTab: "Mtr_plantilla_calendario", timezone: "Europe/Madrid" });
+    expect(client).toMatchObject({ clientName: "Bar Prueba", whatsappE164: "+34600111222", metricoolBlogId: null, timezone: "Europe/Madrid" });
     expect(gbpProfile).toBeNull();
+  });
+
+  it("guarda la marca de Metricool del cliente", async () => {
+    const { client } = await createClient(admin, input({ metricoolBlogId: "5362957" }));
+    expect(client.metricoolBlogId).toBe("5362957");
+    const updated = await updateClient(admin, client.clientId, { metricoolBlogId: "1234567" });
+    expect(updated.metricoolBlogId).toBe("1234567");
   });
 
   it("WhatsApp duplicado → 409 aunque cambie el formato (+ o espacios)", async () => {

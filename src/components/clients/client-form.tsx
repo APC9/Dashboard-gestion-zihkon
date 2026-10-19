@@ -25,9 +25,7 @@ export interface ClientFormInitial {
   clientId?: string;
   clientName?: string | null;
   whatsappE164?: string | null;
-  driveFolderId?: string | null;
-  googleSheetId?: string | null;
-  googleSheetTab?: string | null;
+  metricoolBlogId?: string | null;
   timezone?: string | null;
   active?: boolean | null;
 }
@@ -43,9 +41,7 @@ export function ClientForm({ initial }: { initial?: ClientFormInitial }) {
     defaultValues: {
       clientName: initial?.clientName ?? "",
       whatsappE164: initial?.whatsappE164 ?? "",
-      driveFolderId: initial?.driveFolderId ?? "",
-      googleSheetId: initial?.googleSheetId ?? "",
-      googleSheetTab: initial?.googleSheetTab ?? "",
+      metricoolBlogId: initial?.metricoolBlogId ?? "",
       timezone: initial?.timezone ?? "Europe/Madrid",
       active: initial?.active ?? true,
       gbp: null,
@@ -119,9 +115,11 @@ export function ClientForm({ initial }: { initial?: ClientFormInitial }) {
           inputMode: "tel",
           description: "Formato internacional E.164. n8n identifica al cliente por este número.",
         })}
-        {text("driveFolderId", "Google Drive Folder ID", { description: "ID de la carpeta donde n8n guarda los archivos." })}
-        {text("googleSheetId", "Google Sheet ID")}
-        {text("googleSheetTab", "Google Sheet Tab", { placeholder: "Mtr_plantilla_calendario" })}
+        {text("metricoolBlogId", "Marca de Metricool (blogId)", {
+          placeholder: "5362957",
+          inputMode: "text",
+          description: "Las publicaciones del cliente se crean en esta marca de Metricool. Déjalo vacío si aún no la tiene.",
+        })}
         {text("timezone", "Zona horaria", { list: "timezones", placeholder: "Europe/Madrid" })}
         <datalist id="timezones">
           {timezones.map((tz) => (

@@ -18,8 +18,7 @@ export interface IntakeCardData {
     originalFileName: string | null;
     mediaType: string | null;
     mimeType: string | null;
-    driveUrl: string | null;
-    driveFileId: string | null;
+    mediaUrl: string | null;
     position: number | null;
     createdAt: Date | null;
   }[];
@@ -64,8 +63,7 @@ export function IntakeCard({ intake, showClient = true }: { intake: IntakeCardDa
                   name: m.originalFileName,
                   mediaType: m.mediaType,
                   mimeType: m.mimeType,
-                  driveUrl: m.driveUrl,
-                  driveFileId: m.driveFileId,
+                  url: m.mediaUrl,
                   position: m.position,
                   createdAt: m.createdAt,
                 }}

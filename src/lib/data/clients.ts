@@ -122,9 +122,7 @@ export async function getClientOverview(actor: Actor, clientId: string) {
 type ClientInput = {
   clientName?: string;
   whatsappE164?: string;
-  driveFolderId?: string;
-  googleSheetId?: string;
-  googleSheetTab?: string;
+  metricoolBlogId?: string;
   timezone?: string;
   active?: boolean;
 };

@@ -28,8 +28,8 @@ export async function resetDb() {
 export async function insertClient(name: string, phone: string) {
   return withDb(async (db) => {
     const { rows } = await db.query<{ client_id: string }>(
-      `INSERT INTO public.clients (client_name, whatsapp_e164, drive_folder_id, google_sheet_id, google_sheet_tab, timezone, active)
-       VALUES ($1, $2, 'drive-folder-test-0001', 'sheet-id-test-000001', 'Plantilla_Base', 'Europe/Madrid', true) RETURNING client_id`,
+      `INSERT INTO public.clients (client_name, whatsapp_e164, timezone, active)
+       VALUES ($1, $2, 'Europe/Madrid', true) RETURNING client_id`,
       [name, phone],
     );
     return rows[0].client_id;

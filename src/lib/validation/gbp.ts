@@ -13,7 +13,6 @@ export const gbpProfileFields = {
   preferredLanguage: optionalText(50),
   responseMode: z.enum(GBP_RESPONSE_MODES, { error: "Modo no válido" }),
   customAiInstructions: optionalText(4000),
-  telegramChatId: optionalText(50),
   // Columna NOT NULL con DEFAULT 15: vacío => 15.
   delayMinutes: z
     .number({ error: "Introduce un número" })

@@ -26,7 +26,6 @@ export const GBP_FIELD_DEFAULTS = {
   preferredLanguage: "es",
   responseMode: "manual" as const,
   customAiInstructions: "",
-  telegramChatId: "",
   delayMinutes: 15 as number | null,
   contactEmail: "",
 };
@@ -121,7 +120,6 @@ export function GbpProfileFields<T extends FieldValues>({
         )}
       />
       {text("contactEmail", "Email de contacto", { type: "email" })}
-      {text("telegramChatId", "Telegram Chat ID")}
       <div className="md:col-span-2">
         <Controller
           control={control}

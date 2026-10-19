@@ -13,8 +13,6 @@ test.describe("gestión de clientes", () => {
     await page.goto("/clients/new");
     await page.locator("#clientName").fill("Pizzería E2E");
     await page.locator("#whatsappE164").fill("+34 600 123 456");
-    await page.locator("#driveFolderId").fill("drive-folder-test-0001");
-    await page.locator("#googleSheetId").fill("sheet-id-test-000001");
     await page.getByRole("button", { name: "Crear cliente" }).click();
     await expect(page).toHaveURL(/\/clients\/[0-9a-f-]{36}$/);
     const rows = await withDb((db) => db.query("SELECT client_name, whatsapp_e164 FROM public.clients"));
@@ -25,8 +23,6 @@ test.describe("gestión de clientes", () => {
     await page.goto("/clients/new");
     await page.locator("#clientName").fill("Bar Corto");
     await page.locator("#whatsappE164").fill("+3460483237");
-    await page.locator("#driveFolderId").fill("drive-folder-test-0001");
-    await page.locator("#googleSheetId").fill("sheet-id-test-000001");
     await page.getByRole("button", { name: "Crear cliente" }).click();
     await expect(page.getByText(/9 cifras/)).toBeVisible();
     expect((await withDb((db) => db.query("SELECT count(*)::int AS n FROM public.clients"))).rows[0].n).toBe(0);
@@ -37,8 +33,6 @@ test.describe("gestión de clientes", () => {
     await page.goto("/clients/new");
     await page.locator("#clientName").fill("Nuevo");
     await page.locator("#whatsappE164").fill("34600123456");
-    await page.locator("#driveFolderId").fill("drive-folder-test-0001");
-    await page.locator("#googleSheetId").fill("sheet-id-test-000001");
     await page.getByRole("button", { name: "Crear cliente" }).click();
     await expect(page.getByText(/ya pertenece a "Existente"/)).toBeVisible();
   });

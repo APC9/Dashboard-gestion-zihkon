@@ -26,9 +26,6 @@ export async function makeClient(overrides: Partial<{ clientName: string; whatsa
     data: {
       clientName: overrides.clientName ?? `Cliente prueba ${seq} ${Date.now()}`,
       whatsappE164: overrides.whatsappE164 ?? `+3461${String(Date.now() + seq).slice(-7)}`,
-      driveFolderId: "drive-folder-test-0001",
-      googleSheetId: "sheet-id-test-000001",
-      googleSheetTab: "Plantilla_Base",
       timezone: "Europe/Madrid",
       active: overrides.active ?? true,
     },

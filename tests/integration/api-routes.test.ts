@@ -52,9 +52,7 @@ const ctx = (id: string) => ({ params: Promise.resolve({ id }) });
 const newClient = {
   clientName: "Bar Ruta",
   whatsappE164: "+34600999888",
-  driveFolderId: "drive-folder-test-0001",
-  googleSheetId: "sheet-id-test-000001",
-  googleSheetTab: "",
+  metricoolBlogId: "",
   timezone: "",
   active: true,
 };
