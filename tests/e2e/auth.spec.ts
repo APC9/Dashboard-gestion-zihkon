@@ -25,6 +25,11 @@ test.describe("autenticación", () => {
     await expect(page).toHaveURL(/\/login/);
   });
 
+  test("el formulario de login nunca envía la contraseña en la URL", async ({ page }) => {
+    await page.goto("/login");
+    await expect(page.locator("form")).toHaveAttribute("method", "post");
+  });
+
   test("email no válido se valida en el formulario", async ({ page }) => {
     await login(page, "no-es-email", "x");
     await expect(page.getByText("Introduce un email válido")).toBeVisible();

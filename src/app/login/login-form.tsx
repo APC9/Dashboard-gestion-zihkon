@@ -36,8 +36,9 @@ export function LoginForm({ callbackUrl, initialError }: { callbackUrl: string; 
     window.location.assign(callbackUrl);
   };
 
+  // method="post": si el JavaScript aún no ha cargado, el navegador no pone el email y la contraseña en la URL.
   return (
-    <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col gap-6" noValidate>
+    <form method="post" onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col gap-6" noValidate>
       <div className="space-y-1">
         <h1 className="text-2xl font-semibold tracking-tight">Iniciar sesión</h1>
         <p className="text-sm text-muted-foreground">Accede al panel de gestión de Zihkon</p>
