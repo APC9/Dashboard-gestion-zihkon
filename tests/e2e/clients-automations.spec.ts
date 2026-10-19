@@ -74,7 +74,7 @@ test.describe("referidos", () => {
     await page.locator("#whatsappE164").fill("+34600000503");
     await page.locator("#referralCode").fill("ZK99999");
     await page.getByRole("button", { name: "Crear cliente" }).click();
-    await expect(page.getByText("No existe ningún cliente con ese código")).toBeVisible();
+    await expect(page.getByText("No existe ningún cliente con ese código").first()).toBeVisible();
     expect((await withDb((db) => db.query("SELECT count(*)::int AS n FROM public.clients"))).rows[0].n).toBe(0);
   });
 });
